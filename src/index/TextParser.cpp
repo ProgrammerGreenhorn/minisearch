@@ -1,0 +1,49 @@
+#include "minisearch/index/TextParser.hpp"
+
+#include <cctype>
+#include <fstream>
+#include <iterator>
+
+namespace minisearch::index {
+
+std::vector<std::string> TextParser::parseFile(const std::filesystem::path& path) const
+{
+    std::ifstream input(path);
+    if (!input) {
+        return {};
+    }
+
+    std::vector<std::string> terms;
+    std::string line;
+    while (std::getline(input, line)) {
+        auto lineTerms = tokenize(line);
+        terms.insert(terms.end(),
+                     std::make_move_iterator(lineTerms.begin()),
+                     std::make_move_iterator(lineTerms.end()));
+    }
+    return terms;
+}
+
+std::vector<std::string> TextParser::tokenize(std::string_view text)
+{
+    std::vector<std::string> terms;
+    std::string current;
+
+    for (const unsigned char ch : text) {
+        if (std::isalnum(ch) || ch == '_') {
+            current.push_back(static_cast<char>(std::tolower(ch)));
+        } else if (!current.empty()) {
+            terms.push_back(std::move(current));
+            current.clear();
+        }
+    }
+
+    if (!current.empty()) {
+        terms.push_back(std::move(current));
+    }
+
+    return terms;
+}
+
+} // namespace minisearch::index
+

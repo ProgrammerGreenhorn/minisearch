@@ -1,0 +1,6 @@
+build/
+.minisearch.index
+*.o
+*.out
+*.exe
+
