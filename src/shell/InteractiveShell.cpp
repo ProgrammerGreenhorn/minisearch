@@ -97,6 +97,11 @@ auto InteractiveShell::execute(const std::string& line) -> bool {
     return true;
   }
 
+  if (command == "show") {
+    printShow();
+    return true;
+  }
+
   if (command == "find") {
     printFind(argument);
     return true;
@@ -115,6 +120,7 @@ auto InteractiveShell::printHelp() const -> void {
   std::cout << R"(Commands:
   find <query>   Search indexed file names and paths
   grep <query>   Search indexed text content
+  show           Show all indexed files
   stats          Show index statistics
   path           Show current indexed root and index file
   help           Show this help
@@ -131,6 +137,14 @@ auto InteractiveShell::printStats() const -> void {
 auto InteractiveShell::printPath() const -> void {
   std::cout << "root: " << rootPath_ << '\n'
             << "index: " << indexFile_.string() << '\n';
+}
+
+auto InteractiveShell::printShow() const -> void {
+  const auto& records = index_.records();
+  for (const auto& record : records) {
+    std::cout << search::SearchEngine::formatRecord(record) << '\n';
+  }
+  std::cout << records.size() << " file(s)\n";
 }
 
 auto InteractiveShell::printFind(const std::string& query) const -> void {

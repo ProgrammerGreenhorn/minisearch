@@ -23,6 +23,8 @@ class InteractiveShell {
 
   auto printPath() const -> void;
 
+  auto printShow() const -> void;
+
   auto printFind(const std::string& query) const -> void;
 
   auto printGrep(const std::string& query) const -> void;
