@@ -19,6 +19,30 @@ auto resolveDefaultIndexFile(const std::filesystem::path& path)
   return index::IndexRepository::indexFileForPath(path);
 }
 
+auto parseIndexOptions(CommandOptions& options, int argc, char** argv,
+                       int startIndex) -> void {
+  for (int i = startIndex; i < argc; ++i) {
+    const std::string arg = argv[i];
+    if ((arg == "--output" || arg == "-o") && i + 1 < argc) {
+      options.indexFile = argv[++i];
+      options.indexFileExplicit = true;
+    } else if (arg == "--threads" && i + 1 < argc) {
+      options.threads = static_cast<std::size_t>(std::stoul(argv[++i]));
+      if (options.threads == 0) {
+        options.threads = defaultThreadCount();
+      }
+    } else {
+      throw std::invalid_argument("unknown option: " + arg);
+    }
+  }
+}
+
+auto resolveIndexFile(CommandOptions& options) -> void {
+  if (!options.indexFileExplicit) {
+    options.indexFile = resolveDefaultIndexFile(options.targetPath);
+  }
+}
+
 }  // namespace
 
 auto CommandParser::parse(int argc, char** argv) const -> CommandOptions {
@@ -36,38 +60,16 @@ auto CommandParser::parse(int argc, char** argv) const -> CommandOptions {
     return options;
   }
 
-  if (command == "index") {
-    if (argc < 3) {
-      throw std::invalid_argument("index command requires a target path");
-    }
-
-    options.command = Command::Index;
-    options.targetPath = argv[2];
-    options.targetPathExplicit = true;
-
-    for (int i = 3; i < argc; ++i) {
-      const std::string arg = argv[i];
-      if ((arg == "--output" || arg == "-o") && i + 1 < argc) {
-        options.indexFile = argv[++i];
-        options.indexFileExplicit = true;
-      } else if (arg == "--threads" && i + 1 < argc) {
-        options.threads = static_cast<std::size_t>(std::stoul(argv[++i]));
-        if (options.threads == 0) {
-          options.threads = defaultThreadCount();
-        }
-      } else {
-        throw std::invalid_argument("unknown index option: " + arg);
-      }
-    }
-
-    if (!options.indexFileExplicit) {
-      options.indexFile = resolveDefaultIndexFile(options.targetPath);
-    }
-
+  if (!command.empty() && command[0] == '-') {
+    options.command = Command::Unknown;
     return options;
   }
 
-  options.command = Command::Unknown;
+  options.command = Command::Index;
+  options.targetPath = argv[1];
+  options.targetPathExplicit = true;
+  parseIndexOptions(options, argc, argv, 2);
+  resolveIndexFile(options);
   return options;
 }
 
@@ -76,12 +78,12 @@ auto CommandParser::helpText() -> std::string {
 
 Usage:
   minisearch
-  minisearch index <path> [--output <file>] [--threads <n>]
+  minisearch <path> [--output <file>] [--threads <n>]
   minisearch help
 
 Examples:
-  minisearch index .
-  minisearch index ./src
+  minisearch .
+  minisearch ./src
   minisearch
 )";
 }

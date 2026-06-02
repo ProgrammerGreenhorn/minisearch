@@ -1,5 +1,5 @@
 #include "minisearch/index/FileScanner.hpp"
-
+#include "minisearch/util/Logger.hpp"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -7,6 +7,14 @@
 #include <utility>
 
 namespace minisearch::index {
+
+namespace {
+
+auto normalizePath(const std::filesystem::path& path) -> std::filesystem::path {
+  return std::filesystem::absolute(path).lexically_normal();
+}
+
+}  // namespace
 
 FileScanner::FileScanner() : FileScanner(Options{}) {}
 
@@ -21,7 +29,8 @@ auto FileScanner::scan(const std::filesystem::path& root) const
   }
 
   std::vector<FileRecord> records;
-  const auto base = fs::absolute(root);
+  const auto base = normalizePath(root);
+  MINISEARCH_LOG_DEBUG("normalized path: " + base.string());
 
   if (fs::is_regular_file(base)) {
     const auto size = fs::file_size(base);

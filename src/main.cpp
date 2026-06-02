@@ -23,11 +23,10 @@ using minisearch::index::IndexStorage;
 using minisearch::index::InvertedIndex;
 using minisearch::index::TextParser;
 using minisearch::shell::InteractiveShell;
-using minisearch::util::Logger;
 using minisearch::util::ThreadPool;
 
 auto runIndex(const CommandOptions& options) -> int {
-  Logger::info("scanning files...");
+  MINISEARCH_LOG_INFO("scanning files...");
   FileScanner scanner;
   auto records = scanner.scan(options.targetPath);
 
@@ -36,7 +35,7 @@ auto runIndex(const CommandOptions& options) -> int {
     index.addRecord(std::move(record));
   }
 
-  Logger::info("parsing text files...");
+  MINISEARCH_LOG_INFO("parsing text files...");
   TextParser parser;
   ThreadPool pool(options.threads);
 
@@ -65,8 +64,8 @@ auto runIndex(const CommandOptions& options) -> int {
   storage.save(options.indexFile, index, rootPath);
   IndexRepository::saveCurrentIndex(rootPath, options.indexFile);
 
-  Logger::info("index written to " + options.indexFile.string());
-  Logger::info("current index root set to " + rootPath);
+  MINISEARCH_LOG_INFO("index written to " + options.indexFile.string());
+  MINISEARCH_LOG_INFO("current index root set to " + rootPath);
   std::cout << "files: " << index.fileCount() << '\n'
             << "text files: " << index.indexedTextFileCount() << '\n'
             << "terms: " << index.termCount() << '\n';
@@ -104,7 +103,7 @@ auto main(int argc, char** argv) -> int {
         return 2;
     }
   } catch (const std::exception& error) {
-    Logger::error(error.what());
+    MINISEARCH_LOG_ERROR(error.what());
     return 1;
   }
 

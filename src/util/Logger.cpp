@@ -1,6 +1,10 @@
 #include "minisearch/util/Logger.hpp"
 
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 namespace minisearch::util {
 
@@ -23,7 +27,7 @@ auto label(LogLevel level) -> const char* {
 auto color(LogLevel level) -> const char* {
   switch (level) {
     case LogLevel::Debug:
-      return "\033[36m";
+      return "\033[35m";
     case LogLevel::Info:
       return "\033[32m";
     case LogLevel::Warning:
@@ -34,12 +38,28 @@ auto color(LogLevel level) -> const char* {
   return "\033[0m";
 }
 
+auto timestamp() -> std::string {
+  const auto now = std::chrono::system_clock::now();
+  const auto time = std::chrono::system_clock::to_time_t(now);
+
+  std::tm localTime{};
+#ifdef _WIN32
+  localtime_s(&localTime, &time);
+#else
+  localtime_r(&time, &localTime);
+#endif
+
+  std::ostringstream stream;
+  stream << std::put_time(&localTime, "%Y-%m-%d %H:%M:%S");
+  return stream.str();
+}
+
 }  // namespace
 
 auto Logger::log(LogLevel level, const std::string& message) -> void {
   auto& stream = level == LogLevel::Error ? std::cerr : std::cout;
-  stream << color(level) << '[' << label(level) << "] " << message
-         << "\033[0m\n";
+  stream << color(level) << '[' << timestamp() << "] [" << label(level) << "] "
+         << message << "\033[0m\n";
 }
 
 auto Logger::debug(const std::string& message) -> void {

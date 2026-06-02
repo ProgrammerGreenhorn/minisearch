@@ -29,8 +29,8 @@ constexpr auto CurrentPointerFormatVersion = 1u;
 auto logHomeOnce(const char* home) -> void {
   static std::once_flag flag;
   std::call_once(flag, [home]() -> void {
-    minisearch::util::Logger::info("HOME environment variable: " +
-                                   std::string(home ? home : "(null)"));
+    MINISEARCH_LOG_INFO("HOME environment variable: " +
+                        std::string(home ? home : "(null)"));
   });
 }
 
@@ -112,7 +112,7 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   std::ifstream input(currentPointerFile(), std::ios::binary);
   if (!input) {
     throw std::runtime_error(
-        "no current index; run minisearch index <path> first");
+        "no current index; run minisearch <path> first");
   }
 
   proto::CurrentIndex protoCurrent;

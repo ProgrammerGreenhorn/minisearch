@@ -39,8 +39,8 @@ auto TextParser::parseFile(const std::filesystem::path& path) const
   while (std::getline(input, line)) {
     ++lineNumber;
     auto lineTerms = tokenize(line);
-    util::Logger::debug(path.string() + ":" + std::to_string(lineNumber) +
-                        " tokens " + formatTerms(lineTerms));
+    // MINISEARCH_LOG_DEBUG(path.string() + ":" + std::to_string(lineNumber) +
+    //                      " tokens " + formatTerms(lineTerms));
     terms.insert(terms.end(), std::make_move_iterator(lineTerms.begin()),
                  std::make_move_iterator(lineTerms.end()));
   }

@@ -40,7 +40,7 @@ cmake --install build/debug
 ## Usage
 
 ```bash
-./build/debug/minisearch index ./src
+./build/debug/minisearch ./src
 ```
 
 After indexing, MiniSearch enters an interactive shell:
@@ -66,13 +66,13 @@ hashes that path to choose the real Protobuf index file. For example, indexing
 `./src` stores an index for the canonical `src` path under
 `~/.minisearch/indexes/<hash>.pb`.
 
-After a successful `index` command, MiniSearch writes
+After a successful indexing run, MiniSearch writes
 `~/.minisearch/current.pb`. That Protobuf file points to the most recently
 built index, so running MiniSearch without arguments reopens that index in the
 interactive shell:
 
 ```bash
-./build/debug/minisearch index ./src
+./build/debug/minisearch ./src
 ./build/debug/minisearch
 ```
 
@@ -84,8 +84,7 @@ Use shell commands for searching and stats:
 (minisearch) path
 ```
 
-Run `minisearch index <path>` again to build and switch to a different indexed
-path.
+Run `minisearch <path>` again to build and switch to a different indexed path.
 
 ## Modules
 
