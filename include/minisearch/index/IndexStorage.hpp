@@ -1,16 +1,17 @@
 #pragma once
 
-#include "minisearch/index/InvertedIndex.hpp"
-
 #include <filesystem>
+
+#include "minisearch/index/InvertedIndex.hpp"
 
 namespace minisearch::index {
 
 class IndexStorage {
-public:
-    void save(const std::filesystem::path& path, const InvertedIndex& index) const;
-    InvertedIndex load(const std::filesystem::path& path) const;
+ public:
+  auto save(const std::filesystem::path &path, const InvertedIndex &index,
+            const std::filesystem::path &rootPath) const -> void;
+
+  auto load(const std::filesystem::path &path) const -> InvertedIndex;
 };
 
-} // namespace minisearch::index
-
+}  // namespace minisearch::index

@@ -1,0 +1,6 @@
+{
+  "cmake.buildPreset": "debug",
+  "cmake.configureOnOpen": true,
+  "cmake.configurePreset": "debug",
+  "cmake.useCMakePresets": "always"
+}

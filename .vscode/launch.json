@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug minisearch: index src",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/debug/minisearch",
+      "args": [
+        "index",
+        "${workspaceFolder}/src"
+      ],
+      "stopOnEntry": false,
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "terminal": "integrated",
+      "preLaunchTask": "cmake: build debug"
+    },
+    {
+      "name": "Debug minisearch: interactive",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/debug/minisearch",
+      "args": [],
+      "stopOnEntry": false,
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "terminal": "integrated",
+      "preLaunchTask": "cmake: build debug"
+    }
+  ]
+}

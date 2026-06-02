@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package minisearch.index.proto;
+
+message FileRecord {
+  uint32 id = 1;
+  string path = 2;
+  uint64 size = 3;
+  int64 modified_time = 4;
+  bool text_indexed = 5;
+}
+
+message PostingList {
+  string term = 1;
+  repeated uint32 document_ids = 2;
+}
+
+message Index {
+  uint32 version = 1;
+  repeated FileRecord records = 2;
+  repeated PostingList postings = 3;
+  string root_path = 4;
+}
+
+message CurrentIndex {
+  uint32 version = 1;
+  string root_path = 2;
+  string index_file = 3;
+}

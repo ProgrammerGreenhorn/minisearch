@@ -8,10 +8,11 @@
 namespace minisearch::index {
 
 class TextParser {
-public:
-    std::vector<std::string> parseFile(const std::filesystem::path& path) const;
-    static std::vector<std::string> tokenize(std::string_view text);
+ public:
+  auto parseFile(const std::filesystem::path& path) const
+      -> std::vector<std::string>;
+
+  static auto tokenize(std::string_view text) -> std::vector<std::string>;
 };
 
-} // namespace minisearch::index
-
+}  // namespace minisearch::index

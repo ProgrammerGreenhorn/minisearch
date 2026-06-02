@@ -1,45 +1,55 @@
 #pragma once
 
-#include "minisearch/index/FileRecord.hpp"
-
 #include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "minisearch/index/FileRecord.hpp"
+
 namespace minisearch::index {
 
 class InvertedIndex {
-public:
-    using DocumentId = FileRecord::Id;
-    using PostingList = std::vector<DocumentId>;
+ public:
+  using DocumentId = FileRecord::Id;
+  using PostingList = std::vector<DocumentId>;
 
-    void clear();
+  auto clear() -> void;
 
-    DocumentId addRecord(FileRecord record);
-    void addTerms(DocumentId id, const std::vector<std::string>& terms);
-    void replace(std::vector<FileRecord> records,
-                 std::unordered_map<std::string, PostingList> postings);
+  auto addRecord(FileRecord record) -> DocumentId;
 
-    std::vector<FileRecord> findByName(const std::string& query, std::size_t limit) const;
-    std::vector<FileRecord> findByTerms(const std::vector<std::string>& terms,
-                                        std::size_t limit) const;
+  auto addTerms(DocumentId id, const std::vector<std::string> &terms) -> void;
 
-    const std::vector<FileRecord>& records() const;
-    const std::unordered_map<std::string, PostingList>& postings() const;
+  auto replace(std::vector<FileRecord> records,
+               std::unordered_map<std::string, PostingList> postings) -> void;
 
-    std::size_t fileCount() const;
-    std::size_t indexedTextFileCount() const;
-    std::size_t termCount() const;
+  auto findByName(const std::string &query,
+                  std::size_t limit) const -> std::vector<FileRecord>;
 
-private:
-    const FileRecord* recordById(DocumentId id) const;
-    static std::string lower(std::string value);
-    static bool containsCaseInsensitive(const std::string& text, const std::string& query);
+  auto findByTerms(const std::vector<std::string> &terms,
+                   std::size_t limit) const -> std::vector<FileRecord>;
 
-    std::vector<FileRecord> records_;
-    std::unordered_map<std::string, PostingList> postings_;
+  auto records() const -> const std::vector<FileRecord> &;
+
+  auto postings() const -> const std::unordered_map<std::string, PostingList> &;
+
+  auto fileCount() const -> std::size_t;
+
+  auto indexedTextFileCount() const -> std::size_t;
+
+  auto termCount() const -> std::size_t;
+
+ private:
+  auto recordById(DocumentId id) const -> const FileRecord *;
+
+  static auto lower(std::string value) -> std::string;
+
+  static auto containsCaseInsensitive(const std::string &text,
+                                      const std::string &query) -> bool;
+
+  std::vector<FileRecord> records_;
+
+  std::unordered_map<std::string, PostingList> postings_;
 };
 
-} // namespace minisearch::index
-
+}  // namespace minisearch::index

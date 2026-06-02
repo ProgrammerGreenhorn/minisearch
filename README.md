@@ -4,21 +4,88 @@ A C++17 local file indexing and search tool.
 
 ## Build
 
+Install Protobuf first:
+
 ```bash
-cmake -S . -B build
-cmake --build build
+sudo apt update
+sudo apt install -y protobuf-compiler libprotobuf-dev
+```
+
+Then build:
+
+```bash
+cmake --preset debug
+cmake --build --preset debug
+```
+
+The debug binary is written to:
+
+```bash
+build/debug/minisearch
+```
+
+For an optimized build:
+
+```bash
+cmake --preset release
+cmake --build --preset release
+```
+
+Install the selected build to `~/.local/bin`:
+
+```bash
+cmake --install build/debug
 ```
 
 ## Usage
 
 ```bash
-./build/minisearch index ./src
-./build/minisearch find main
-./build/minisearch grep "class parser"
-./build/minisearch stats
+./build/debug/minisearch index ./src
 ```
 
-The default index file is `.minisearch.index` in the current directory.
+After indexing, MiniSearch enters an interactive shell:
+
+```text
+(minisearch) find main
+(minisearch) grep "class parser"
+(minisearch) stats
+(minisearch) quit
+```
+
+By default, index files are stored under `~/.minisearch`:
+
+```text
+~/.minisearch/
+  current.pb
+  indexes/
+    <canonical-path-hash>.pb
+```
+
+MiniSearch first converts the indexed path to a normalized absolute path, then
+hashes that path to choose the real Protobuf index file. For example, indexing
+`./src` stores an index for the canonical `src` path under
+`~/.minisearch/indexes/<hash>.pb`.
+
+After a successful `index` command, MiniSearch writes
+`~/.minisearch/current.pb`. That Protobuf file points to the most recently
+built index, so running MiniSearch without arguments reopens that index in the
+interactive shell:
+
+```bash
+./build/debug/minisearch index ./src
+./build/debug/minisearch
+```
+
+Use shell commands for searching and stats:
+
+```text
+(minisearch) grep ThreadPool
+(minisearch) stats
+(minisearch) path
+```
+
+Run `minisearch index <path>` again to build and switch to a different indexed
+path.
 
 ## Modules
 
@@ -34,4 +101,3 @@ The default index file is `.minisearch.index` in the current directory.
 - Highlighted search output
 - Config file support
 - Compact binary index format
-

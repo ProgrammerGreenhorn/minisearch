@@ -6,53 +6,60 @@ namespace minisearch::util {
 
 namespace {
 
-const char* label(LogLevel level)
-{
-    switch (level) {
+auto label(LogLevel level) -> const char* {
+  switch (level) {
+    case LogLevel::Debug:
+      return "debug";
     case LogLevel::Info:
-        return "info";
+      return "info";
     case LogLevel::Warning:
-        return "warning";
+      return "warning";
     case LogLevel::Error:
-        return "error";
-    }
-    return "log";
+      return "error";
+  }
+  return "log";
 }
 
-const char* color(LogLevel level)
-{
-    switch (level) {
+auto color(LogLevel level) -> const char* {
+  switch (level) {
+    case LogLevel::Debug:
+      return "\033[36m";
     case LogLevel::Info:
-        return "\033[32m";
+      return "\033[32m";
     case LogLevel::Warning:
-        return "\033[33m";
+      return "\033[33m";
     case LogLevel::Error:
-        return "\033[31m";
-    }
-    return "\033[0m";
+      return "\033[31m";
+  }
+  return "\033[0m";
 }
 
-} // namespace
+}  // namespace
 
-void Logger::log(LogLevel level, const std::string& message)
-{
-    auto& stream = level == LogLevel::Error ? std::cerr : std::cout;
-    stream << color(level) << '[' << label(level) << "] " << message << "\033[0m\n";
+auto Logger::log(LogLevel level, const std::string& message) -> void {
+  auto& stream = level == LogLevel::Error ? std::cerr : std::cout;
+  stream << color(level) << '[' << label(level) << "] " << message
+         << "\033[0m\n";
 }
 
-void Logger::info(const std::string& message)
-{
-    log(LogLevel::Info, message);
+auto Logger::debug(const std::string& message) -> void {
+#ifdef MINISEARCH_ENABLE_DEBUG_LOG
+  log(LogLevel::Debug, message);
+#else
+  (void)message;
+#endif
 }
 
-void Logger::warning(const std::string& message)
-{
-    log(LogLevel::Warning, message);
+auto Logger::info(const std::string& message) -> void {
+  log(LogLevel::Info, message);
 }
 
-void Logger::error(const std::string& message)
-{
-    log(LogLevel::Error, message);
+auto Logger::warning(const std::string& message) -> void {
+  log(LogLevel::Warning, message);
 }
 
-} // namespace minisearch::util
+auto Logger::error(const std::string& message) -> void {
+  log(LogLevel::Error, message);
+}
+
+}  // namespace minisearch::util

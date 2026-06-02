@@ -4,22 +4,19 @@
 
 namespace minisearch::util {
 
-enum class LogLevel {
-    Info,
-    Warning,
-    Error
-};
+enum class LogLevel { Debug, Info, Warning, Error };
 
 class Logger {
-public:
-    static void log(LogLevel level, const std::string& message);
+ public:
+  static auto log(LogLevel level, const std::string& message) -> void;
 
-    static void info(const std::string& message);
+  static auto debug(const std::string& message) -> void;
 
-    static void warning(const std::string& message);
-    
-    static void error(const std::string& message);
+  static auto info(const std::string& message) -> void;
+
+  static auto warning(const std::string& message) -> void;
+
+  static auto error(const std::string& message) -> void;
 };
 
-} // namespace minisearch::util
-
+}  // namespace minisearch::util

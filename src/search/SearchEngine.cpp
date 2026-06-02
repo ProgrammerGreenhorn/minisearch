@@ -11,19 +11,19 @@ SearchEngine::SearchEngine(const index::InvertedIndex& index)
 {
 }
 
-std::vector<index::FileRecord> SearchEngine::findByName(const std::string& query,
-                                                        std::size_t limit) const
+auto SearchEngine::findByName(const std::string& query,
+                              std::size_t limit) const -> std::vector<index::FileRecord>
 {
     return index_.findByName(query, limit);
 }
 
-std::vector<index::FileRecord> SearchEngine::grep(const std::string& query,
-                                                  std::size_t limit) const
+auto SearchEngine::grep(const std::string& query,
+                        std::size_t limit) const -> std::vector<index::FileRecord>
 {
     return index_.findByTerms(index::TextParser::tokenize(query), limit);
 }
 
-std::string SearchEngine::formatRecord(const index::FileRecord& record)
+auto SearchEngine::formatRecord(const index::FileRecord& record) -> std::string
 {
     std::ostringstream stream;
     stream << record.path.string() << " (" << record.size << " bytes)";
@@ -31,4 +31,3 @@ std::string SearchEngine::formatRecord(const index::FileRecord& record)
 }
 
 } // namespace minisearch::search
-
