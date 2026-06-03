@@ -10,7 +10,7 @@ namespace minisearch::cli {
 namespace {
 
 auto defaultThreadCount() -> std::size_t {
-  const auto hardware = std::thread::hardware_concurrency();
+  const unsigned int hardware = std::thread::hardware_concurrency();
   return hardware == 0 ? 2 : hardware;
 }
 

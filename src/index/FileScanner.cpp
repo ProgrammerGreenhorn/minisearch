@@ -5,6 +5,7 @@
 #include <cctype>
 #include <chrono>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace minisearch::index {
@@ -30,19 +31,20 @@ auto FileScanner::scan(const std::filesystem::path& root) const
   }
 
   std::vector<FileRecord> records;
-  const auto base = normalizePath(root);
+  const fs::path base = normalizePath(root);
   MINISEARCH_LOG_DEBUG("normalized path: " + base.string());
 
   if (fs::is_regular_file(base)) {
-    const auto size = fs::file_size(base);
-    const auto textIndexed = shouldIndexText(base, size);
+    const std::uintmax_t size = fs::file_size(base);
+    const bool textIndexed = shouldIndexText(base, size);
     records.emplace_back(base, size, toTimeT(fs::last_write_time(base)),
                          textIndexed,
                          textIndexed ? util::stableFileHash(base) : 0);
     return records;
   }
 
-  const auto iteratorOptions = fs::directory_options::skip_permission_denied;
+  const fs::directory_options iteratorOptions =
+      fs::directory_options::skip_permission_denied;
   auto it = fs::recursive_directory_iterator(base, iteratorOptions);
   auto end = fs::recursive_directory_iterator{};
   for (; it != end; ++it) {
@@ -59,12 +61,12 @@ auto FileScanner::scan(const std::filesystem::path& root) const
     }
 
     std::error_code error;
-    const auto size = entry.file_size(error);
+    const std::uintmax_t size = entry.file_size(error);
     if (error) {
       continue;
     }
 
-    const auto textIndexed = shouldIndexText(entry.path(), size);
+    const bool textIndexed = shouldIndexText(entry.path(), size);
     records.emplace_back(entry.path(), size, toTimeT(entry.last_write_time()),
                          textIndexed,
                          textIndexed ? util::stableFileHash(entry.path()) : 0);
@@ -75,7 +77,7 @@ auto FileScanner::scan(const std::filesystem::path& root) const
 
 auto FileScanner::shouldSkip(
     const std::filesystem::directory_entry& entry) const -> bool {
-  const auto name = entry.path().filename().string();
+  const std::string name = entry.path().filename().string();
   return std::find(options_.excludedNames.begin(), options_.excludedNames.end(),
                    name) != options_.excludedNames.end();
 }
@@ -86,7 +88,7 @@ auto FileScanner::shouldIndexText(const std::filesystem::path& path,
     return false;
   }
 
-  const auto extension = lower(path.extension().string());
+  const std::string extension = lower(path.extension().string());
   return std::find(options_.textExtensions.begin(),
                    options_.textExtensions.end(),
                    extension) != options_.textExtensions.end();
@@ -95,7 +97,8 @@ auto FileScanner::shouldIndexText(const std::filesystem::path& path,
 auto FileScanner::toTimeT(std::filesystem::file_time_type value)
     -> std::time_t {
   using namespace std::chrono;
-  const auto systemTime = time_point_cast<system_clock::duration>(
+  const system_clock::time_point systemTime =
+      time_point_cast<system_clock::duration>(
       value - std::filesystem::file_time_type::clock::now() +
       system_clock::now());
   return system_clock::to_time_t(systemTime);

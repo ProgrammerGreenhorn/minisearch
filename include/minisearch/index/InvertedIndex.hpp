@@ -12,6 +12,7 @@ namespace minisearch::index {
 class InvertedIndex {
  public:
   using DocumentId = FileRecord::Id;
+
   using PostingList = std::vector<DocumentId>;
 
   auto clear() -> void;
@@ -47,8 +48,10 @@ class InvertedIndex {
   static auto containsCaseInsensitive(const std::string &text,
                                       const std::string &query) -> bool;
 
+  // records are stored in a vector and assigned sequential ids based on their position
   std::vector<FileRecord> records_;
 
+  // postings map terms to lists of document ids that contain those terms
   std::unordered_map<std::string, PostingList> postings_;
 };
 

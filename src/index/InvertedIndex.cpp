@@ -79,7 +79,7 @@ auto InvertedIndex::findByTerms(const std::vector<std::string>& terms,
 
   std::vector<FileRecord> result;
   for (const auto id : matches) {
-    if (const auto* record = recordById(id)) {
+    if (const FileRecord* record = recordById(id)) {
       result.push_back(*record);
       if (result.size() >= limit) {
         break;
@@ -104,7 +104,7 @@ auto InvertedIndex::fileCount() const -> std::size_t { return records_.size(); }
 auto InvertedIndex::indexedTextFileCount() const -> std::size_t {
   return static_cast<std::size_t>(std::count_if(
       records_.begin(), records_.end(),
-      [](const auto& record) -> bool { return record.textIndexed; }));
+      [](const FileRecord& record) -> bool { return record.textIndexed; }));
 }
 
 auto InvertedIndex::termCount() const -> std::size_t {

@@ -9,8 +9,8 @@ namespace minisearch::util {
 
 namespace {
 
-constexpr auto FnvOffsetBasis = 14695981039346656037ull;
-constexpr auto FnvPrime = 1099511628211ull;
+constexpr std::uint64_t FnvOffsetBasis = 14695981039346656037ull;
+constexpr std::uint64_t FnvPrime = 1099511628211ull;
 
 auto updateFnv1a(std::uint64_t hash, unsigned char value) -> std::uint64_t {
   hash ^= value;
@@ -19,7 +19,7 @@ auto updateFnv1a(std::uint64_t hash, unsigned char value) -> std::uint64_t {
 }
 
 auto fnv1a(std::string_view value) -> std::uint64_t {
-  auto hash = FnvOffsetBasis;
+  std::uint64_t hash = FnvOffsetBasis;
   for (const auto ch : value) {
     hash = updateFnv1a(hash, static_cast<unsigned char>(ch));
   }
@@ -32,11 +32,11 @@ auto fnv1aFile(const std::filesystem::path& path) -> std::uint64_t {
     return 0;
   }
 
-  auto hash = FnvOffsetBasis;
+  std::uint64_t hash = FnvOffsetBasis;
   std::array<char, 4096> buffer{};
   while (input.read(buffer.data(), static_cast<std::streamsize>(buffer.size())) ||
          input.gcount() > 0) {
-    const auto count = input.gcount();
+    const std::streamsize count = input.gcount();
     for (std::streamsize i = 0; i < count; ++i) {
       hash = updateFnv1a(
           hash, static_cast<unsigned char>(buffer[static_cast<std::size_t>(i)]));

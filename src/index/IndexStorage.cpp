@@ -27,7 +27,7 @@ auto IndexStorage::save(const std::filesystem::path &path,
   for (const auto &record : index.records()) {
     // add_XXX returns a pointer to the newly added element, which we can fill
     // in directly
-    auto *protoRecord = protoIndex.add_records();
+    proto::FileRecord *protoRecord = protoIndex.add_records();
     protoRecord->set_id(record.id);
     protoRecord->set_path(record.path.string());
     protoRecord->set_size(static_cast<std::uint64_t>(record.size));
@@ -38,7 +38,7 @@ auto IndexStorage::save(const std::filesystem::path &path,
   }
 
   for (const auto &[term, postings] : index.postings()) {
-    auto *protoPosting = protoIndex.add_postings();
+    proto::PostingList *protoPosting = protoIndex.add_postings();
     protoPosting->set_term(term);
 
     for (const auto id : postings) {
@@ -46,7 +46,7 @@ auto IndexStorage::save(const std::filesystem::path &path,
     }
   }
 
-  const auto parent = path.parent_path();
+  const std::filesystem::path parent = path.parent_path();
   if (!parent.empty()) {
     std::error_code error;
     std::filesystem::create_directories(parent, error);

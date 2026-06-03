@@ -16,7 +16,7 @@ auto TextParser::parseFile(const std::filesystem::path& path) const
   std::vector<std::string> terms;
   std::string line;
   while (std::getline(input, line)) {
-    auto lineTerms = tokenize(line);
+    std::vector<std::string> lineTerms = tokenize(line);
     terms.insert(terms.end(), std::make_move_iterator(lineTerms.begin()),
                  std::make_move_iterator(lineTerms.end()));
   }

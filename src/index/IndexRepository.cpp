@@ -1,5 +1,6 @@
 #include "minisearch/index/IndexRepository.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <mutex>
@@ -23,7 +24,7 @@ constexpr std::string_view CurrentPointerFileName = "current.pb";
 
 constexpr std::string_view IndexFileExtension = ".pb";
 
-constexpr auto CurrentPointerFormatVersion = 1u;
+constexpr std::uint32_t CurrentPointerFormatVersion = 1;
 
 auto logHomeOnce(const char* home) -> void {
   static std::once_flag flag;
@@ -36,7 +37,7 @@ auto logHomeOnce(const char* home) -> void {
 }  // namespace
 
 auto IndexRepository::dataRoot() -> std::filesystem::path {
-  const auto* home = std::getenv("HOME");
+  const char* home = std::getenv("HOME");
   if (home == nullptr || std::string_view(home).empty()) {
     throw std::runtime_error("HOME is not set; cannot resolve ~/.minisearch");
   }
@@ -58,7 +59,7 @@ auto IndexRepository::canonicalKey(const std::filesystem::path& indexedPath)
   namespace fs = std::filesystem;
 
   std::error_code error;
-  auto absolutePath = fs::absolute(indexedPath, error);
+  fs::path absolutePath = fs::absolute(indexedPath, error);
   if (error) {
     absolutePath = indexedPath;
   }
@@ -66,7 +67,7 @@ auto IndexRepository::canonicalKey(const std::filesystem::path& indexedPath)
   // fail if the path doesn't exist (which canonical does), so it's more
   // suitable for generating a stable key for the index file
   error.clear();
-  auto canonicalPath = fs::weakly_canonical(absolutePath, error);
+  fs::path canonicalPath = fs::weakly_canonical(absolutePath, error);
   if (error) {
     canonicalPath = absolutePath.lexically_normal();
   }

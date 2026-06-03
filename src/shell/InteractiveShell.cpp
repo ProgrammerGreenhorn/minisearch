@@ -73,7 +73,10 @@ auto InteractiveShell::run() -> int {
 }
 
 auto InteractiveShell::execute(const std::string& line) -> bool {
-  const auto [command, argument] = splitCommand(trim(line));
+  const std::pair<std::string, std::string> parsedCommand =
+      splitCommand(trim(line));
+  const std::string& command = parsedCommand.first;
+  const std::string& argument = parsedCommand.second;
   if (command.empty()) {
     return true;
   }
@@ -140,7 +143,7 @@ auto InteractiveShell::printPath() const -> void {
 }
 
 auto InteractiveShell::printShow() const -> void {
-  const auto& records = index_.records();
+  const std::vector<index::FileRecord>& records = index_.records();
   for (const auto& record : records) {
     std::cout << search::SearchEngine::formatRecord(record) << '\n';
   }

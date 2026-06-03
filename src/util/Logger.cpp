@@ -40,8 +40,9 @@ auto color(LogLevel level) -> const char* {
 }
 
 auto timestamp() -> std::string {
-  const auto now = std::chrono::system_clock::now();
-  const auto time = std::chrono::system_clock::to_time_t(now);
+  const std::chrono::system_clock::time_point now =
+      std::chrono::system_clock::now();
+  const std::time_t time = std::chrono::system_clock::to_time_t(now);
 
   std::tm localTime{};
 #ifdef _WIN32
@@ -69,7 +70,7 @@ auto relativeSourcePath(const char* file) -> std::string {
 }
 
 auto Logger::log(LogLevel level, const std::string& message) -> void {
-  auto& stream = level == LogLevel::Error ? std::cerr : std::cout;
+  std::ostream& stream = level == LogLevel::Error ? std::cerr : std::cout;
   stream << color(level) << '[' << timestamp() << "] [" << label(level) << "] "
          << message << "\033[0m\n";
 }
