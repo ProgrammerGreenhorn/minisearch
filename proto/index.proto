@@ -11,9 +11,14 @@ message FileRecord {
   uint64 content_hash = 6;
 }
 
+message Posting {
+  uint32 document_id = 1;
+  repeated uint32 lines = 2;
+}
+
 message PostingList {
   string term = 1;
-  repeated uint32 document_ids = 2;
+  repeated Posting postings = 2;
 }
 
 message Index {

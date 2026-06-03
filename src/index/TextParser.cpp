@@ -3,24 +3,28 @@
 #include <cctype>
 #include <fstream>
 #include <iterator>
+#include <utility>
 
 namespace minisearch::index {
 
 auto TextParser::parseFile(const std::filesystem::path& path) const
-    -> std::vector<std::string> {
+    -> std::vector<ParsedTerm> {
   std::ifstream input(path);
   if (!input) {
     return {};
   }
 
-  std::vector<std::string> terms;
+  std::vector<ParsedTerm> parsedTerms;
   std::string line;
+  std::uint32_t lineNumber = 1;
   while (std::getline(input, line)) {
     std::vector<std::string> lineTerms = tokenize(line);
-    terms.insert(terms.end(), std::make_move_iterator(lineTerms.begin()),
-                 std::make_move_iterator(lineTerms.end()));
+    for (auto& term : lineTerms) {
+      parsedTerms.push_back({std::move(term), lineNumber});
+    }
+    ++lineNumber;
   }
-  return terms;
+  return parsedTerms;
 }
 
 auto TextParser::tokenize(std::string_view text) -> std::vector<std::string> {

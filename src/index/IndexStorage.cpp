@@ -13,7 +13,7 @@ namespace minisearch::index {
 
 namespace {
 
-constexpr std::uint32_t IndexFormatVersion = 1;
+constexpr std::uint32_t IndexFormatVersion = 2;
 
 }  // namespace
 
@@ -37,12 +37,16 @@ auto IndexStorage::save(const std::filesystem::path &path,
     protoRecord->set_content_hash(record.contentHash);
   }
 
-  for (const auto &[term, postings] : index.postings()) {
+  for (const auto &[term, postings] : index.linePostings()) {
     proto::PostingList *protoPosting = protoIndex.add_postings();
     protoPosting->set_term(term);
 
-    for (const auto id : postings) {
-      protoPosting->add_document_ids(id);
+    for (const auto &posting : postings) {
+      proto::Posting *protoTermPosting = protoPosting->add_postings();
+      protoTermPosting->set_document_id(posting.documentId);
+      for (const auto line : posting.lines) {
+        protoTermPosting->add_lines(line);
+      }
     }
   }
 
@@ -97,21 +101,28 @@ auto IndexStorage::load(const std::filesystem::path &path) const
     records.push_back(std::move(record));
   }
 
-  std::unordered_map<std::string, InvertedIndex::PostingList> postings;
-  postings.reserve(static_cast<std::size_t>(protoIndex.postings_size()));
+  std::unordered_map<std::string, InvertedIndex::LinePostingList> linePostings;
+  linePostings.reserve(static_cast<std::size_t>(protoIndex.postings_size()));
   for (const auto &protoPosting : protoIndex.postings()) {
-    InvertedIndex::PostingList ids;
-    ids.reserve(static_cast<std::size_t>(protoPosting.document_ids_size()));
+    InvertedIndex::LinePostingList postings;
+    postings.reserve(static_cast<std::size_t>(protoPosting.postings_size()));
 
-    for (const auto id : protoPosting.document_ids()) {
-      ids.push_back(id);
+    for (const auto &protoTermPosting : protoPosting.postings()) {
+      InvertedIndex::LinePosting posting;
+      posting.documentId = protoTermPosting.document_id();
+      posting.lines.reserve(
+          static_cast<std::size_t>(protoTermPosting.lines_size()));
+      for (const auto line : protoTermPosting.lines()) {
+        posting.lines.push_back(line);
+      }
+      postings.push_back(std::move(posting));
     }
 
-    postings.emplace(protoPosting.term(), std::move(ids));
+    linePostings.emplace(protoPosting.term(), std::move(postings));
   }
 
   InvertedIndex index;
-  index.replace(std::move(records), std::move(postings));
+  index.replace(std::move(records), std::move(linePostings));
   return index;
 }
 

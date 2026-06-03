@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -85,7 +86,9 @@ TEST(IndexBuilderTest, BuildsSearchableIndexAndSavesCurrentPointer) {
   EXPECT_EQ(result.reusedTextFiles, 0U);
   EXPECT_EQ(result.index.fileCount(), 2U);
   EXPECT_EQ(result.index.indexedTextFileCount(), 1U);
-  EXPECT_EQ(result.index.findByTerms({"alpha", "beta"}, 10).size(), 1U);
+  const auto matches = result.index.findByTerms({"alpha", "beta"}, 10);
+  ASSERT_EQ(matches.size(), 1U);
+  EXPECT_EQ(matches[0].lines, std::vector<std::uint32_t>({1}));
   EXPECT_TRUE(std::filesystem::exists(index_file));
 
   const auto current = IndexRepository::loadCurrentIndex();
@@ -110,7 +113,9 @@ TEST(IndexBuilderTest, ReusesUnchangedTextFilesFromPreviousIndex) {
   EXPECT_EQ(first.reusedTextFiles, 0U);
   EXPECT_EQ(second.parsedTextFiles, 0U);
   EXPECT_EQ(second.reusedTextFiles, 1U);
-  EXPECT_EQ(second.index.findByTerms({"alpha", "beta"}, 10).size(), 1U);
+  const auto matches = second.index.findByTerms({"alpha", "beta"}, 10);
+  ASSERT_EQ(matches.size(), 1U);
+  EXPECT_EQ(matches[0].lines, std::vector<std::uint32_t>({1}));
 }
 
 }  // namespace

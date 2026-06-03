@@ -46,6 +46,17 @@ auto printRecords(const std::vector<index::FileRecord>& records) -> void {
   std::cout << records.size() << " result(s)\n";
 }
 
+auto printGrepMatches(
+    const std::vector<search::SearchEngine::GrepLine>& matches) -> void {
+  for (std::size_t index = 0; index < matches.size(); ++index) {
+    std::cout << search::SearchEngine::formatGrepLine(matches[index]) << '\n';
+    if (index + 1 < matches.size()) {
+      std::cout << '\n';
+    }
+  }
+  std::cout << matches.size() << " line(s)\n";
+}
+
 }  // namespace
 
 InteractiveShell::InteractiveShell(index::InvertedIndex index,
@@ -167,7 +178,7 @@ auto InteractiveShell::printGrep(const std::string& query) const -> void {
   }
 
   const search::SearchEngine engine(index_);
-  printRecords(engine.grep(query));
+  printGrepMatches(engine.grepLines(query));
 }
 
 }  // namespace minisearch::shell

@@ -72,15 +72,13 @@ auto previousRecordsByPath(const InvertedIndex& index)
 auto parseChangedTextFiles(const InvertedIndex& index,
                            const std::vector<InvertedIndex::DocumentId>& ids,
                            std::size_t threads)
-    -> std::vector<std::vector<std::string>> {
-  // map from document ID to terms contained in the corresponding text file
-  // the file changed are reparsed in parallel, while unchanged files reuse terms from the previous index
-  std::vector<std::vector<std::string>> termsByDocument(index.fileCount());
+    -> std::vector<std::vector<ParsedTerm>> {
+  std::vector<std::vector<ParsedTerm>> termsByDocument(index.fileCount());
   TextParser parser;
   ThreadPool pool(threads);
 
   using ParseResult =
-      std::pair<InvertedIndex::DocumentId, std::vector<std::string>>;
+      std::pair<InvertedIndex::DocumentId, std::vector<ParsedTerm>>;
   std::vector<std::future<ParseResult>> futures;
 
   for (const auto id : ids) {
@@ -123,8 +121,7 @@ auto IndexBuilder::build(const Options& options) const -> Result {
       reusedIds;
   std::vector<InvertedIndex::DocumentId> idsToParse;
   std::size_t reusedTextFiles = 0;
-  
-  // determine which records can be reused from the previous index and which text files need to be reparsed
+
   for (auto& record : records) {
     const std::string key = recordKey(record.path);
     const auto previous = previousByPath.find(key);
@@ -143,28 +140,32 @@ auto IndexBuilder::build(const Options& options) const -> Result {
     }
   }
 
-  std::vector<std::vector<std::string>> termsByDocument(index.fileCount());
+  std::vector<std::vector<ParsedTerm>> termsByDocument(index.fileCount());
   if (idsToParse.empty()) {
     MINISEARCH_LOG_INFO("no changed text files to parse");
   } else {
     MINISEARCH_LOG_INFO("parsing changed text files...");
     termsByDocument = parseChangedTextFiles(index, idsToParse, options.threads);
   }
-  
-  // get terms for unchanged files from previous inverted index;
+
   if (previousIndex.has_value()) {
-    for (const auto& [term, postings] : previousIndex->postings()) {
-      for (const auto oldId : postings) {
-        if(reusedIds.count(oldId)){
-          termsByDocument[reusedIds[oldId]].push_back(term);
+    for (const auto& [term, postings] : previousIndex->linePostings()) {
+      for (const auto& posting : postings) {
+        const auto reused = reusedIds.find(posting.documentId);
+        if (reused == reusedIds.end()) {
+          continue;
+        }
+
+        for (const auto line : posting.lines) {
+          termsByDocument[reused->second].push_back({term, line});
         }
       }
     }
   }
-  
+
   for (std::size_t id = 0; id < termsByDocument.size(); ++id) {
-    index.addTerms(static_cast<InvertedIndex::DocumentId>(id),
-                   termsByDocument[id]);
+    index.addTermOccurrences(static_cast<InvertedIndex::DocumentId>(id),
+                             termsByDocument[id]);
   }
 
   MINISEARCH_LOG_INFO("incremental index: reused " +

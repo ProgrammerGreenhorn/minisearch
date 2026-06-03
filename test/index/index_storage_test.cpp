@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -17,6 +18,7 @@ namespace {
 using minisearch::index::FileRecord;
 using minisearch::index::IndexStorage;
 using minisearch::index::InvertedIndex;
+using minisearch::index::ParsedTerm;
 
 class ScopedTempDir {
  public:
@@ -40,19 +42,22 @@ class ScopedTempDir {
 };
 
 auto AddRecord(InvertedIndex& index, const std::string& path,
-               const std::vector<std::string>& terms)
+               const std::vector<ParsedTerm>& terms)
     -> InvertedIndex::DocumentId {
   const auto id = index.addRecord(
       FileRecord(std::filesystem::path(path), 10, 1234, true, 42));
-  index.addTerms(id, terms);
+  index.addTermOccurrences(id, terms);
   return id;
 }
 
 TEST(IndexStorageTest, SaveCreatesParentDirectoriesAndLoadRoundTripsIndex) {
   ScopedTempDir temp("minisearch_index_storage");
   InvertedIndex index;
-  const auto first_id = AddRecord(index, "first.txt", {"alpha", "beta"});
-  const auto second_id = AddRecord(index, "second.txt", {"beta", "gamma"});
+  const auto first_id = AddRecord(
+      index, "first.txt",
+      {ParsedTerm{"alpha", 1}, ParsedTerm{"beta", 1}, ParsedTerm{"beta", 2}});
+  const auto second_id = AddRecord(
+      index, "second.txt", {ParsedTerm{"beta", 3}, ParsedTerm{"gamma", 3}});
 
   const auto index_file = temp.path() / "nested" / "index.pb";
   IndexStorage storage;
@@ -66,8 +71,18 @@ TEST(IndexStorageTest, SaveCreatesParentDirectoriesAndLoadRoundTripsIndex) {
   EXPECT_EQ(loaded.records()[0].path, std::filesystem::path("first.txt"));
   EXPECT_EQ(loaded.records()[1].id, second_id);
   EXPECT_EQ(loaded.records()[1].path, std::filesystem::path("second.txt"));
-  EXPECT_EQ(loaded.findByTerms({"beta"}, 10).size(), 2U);
-  EXPECT_EQ(loaded.findByTerms({"alpha", "beta"}, 10).size(), 1U);
+
+  const auto betaMatches = loaded.findByTerms({"beta"}, 10);
+  ASSERT_EQ(betaMatches.size(), 2U);
+  EXPECT_EQ(betaMatches[0].record.path, std::filesystem::path("first.txt"));
+  EXPECT_EQ(betaMatches[0].lines, std::vector<std::uint32_t>({1, 2}));
+  EXPECT_EQ(betaMatches[1].record.path, std::filesystem::path("second.txt"));
+  EXPECT_EQ(betaMatches[1].lines, std::vector<std::uint32_t>({3}));
+
+  const auto sameLineMatches = loaded.findByTerms({"alpha", "beta"}, 10);
+  ASSERT_EQ(sameLineMatches.size(), 1U);
+  EXPECT_EQ(sameLineMatches[0].record.path, std::filesystem::path("first.txt"));
+  EXPECT_EQ(sameLineMatches[0].lines, std::vector<std::uint32_t>({1}));
 }
 
 TEST(IndexStorageTest, LoadThrowsForMissingFile) {
