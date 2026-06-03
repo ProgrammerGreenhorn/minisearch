@@ -139,7 +139,12 @@ auto IndexBuilder::build(const Options& options) const -> Result {
       idsToParse.push_back(id);
     }
   }
-
+  // the tremsByDocument 's structure is like this:
+  // [
+  //   [ { term: "term1", line: 1 }, { term: "term2", line: 1 }, ... ], // terms for document 0
+  //   [ { term: "term3", line: 2 }, { term: "term4", line: 2 }, ... ], // terms for document 1
+  //   ...
+  // ]
   std::vector<std::vector<ParsedTerm>> termsByDocument(index.fileCount());
   if (idsToParse.empty()) {
     MINISEARCH_LOG_INFO("no changed text files to parse");
@@ -149,15 +154,20 @@ auto IndexBuilder::build(const Options& options) const -> Result {
   }
 
   if (previousIndex.has_value()) {
+    // Each entry in linePostings maps one term to the list of documents and
+    // line numbers where that term appeared in the previous index. For reused
+    // files, copy those term occurrences into the new document id so unchanged
+    // files do not need to be parsed again.
     for (const auto& [term, postings] : previousIndex->linePostings()) {
       for (const auto& posting : postings) {
         const auto reused = reusedIds.find(posting.documentId);
         if (reused == reusedIds.end()) {
           continue;
         }
-
+        const auto newId = reused->second;
+        // the term and line numbers constitute a parsedterm;
         for (const auto line : posting.lines) {
-          termsByDocument[reused->second].push_back({term, line});
+          termsByDocument[newId].push_back({term, line});
         }
       }
     }
