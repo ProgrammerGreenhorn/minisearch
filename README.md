@@ -80,11 +80,14 @@ Use shell commands for searching and stats:
 
 ```text
 (minisearch) grep ThreadPool
+(minisearch) show
 (minisearch) stats
 (minisearch) path
 ```
 
-Run `minisearch <path>` again to build and switch to a different indexed path.
+Run `minisearch <path>` again to refresh the index or switch to a different
+indexed path. When an existing index is available, unchanged text files reuse
+their persisted postings and only new or modified text files are parsed again.
 
 ## Modules
 
@@ -95,7 +98,6 @@ Run `minisearch <path>` again to build and switch to a different indexed path.
 
 ## Possible next steps
 
-- Incremental index updates
 - Fuzzy matching and ranking
 - Highlighted search output
 - Config file support

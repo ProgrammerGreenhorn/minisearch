@@ -2,12 +2,11 @@
 
 #include <cstdlib>
 #include <fstream>
-#include <iomanip>
 #include <mutex>
-#include <sstream>
 #include <stdexcept>
 
 #include "index.pb.h"
+#include "minisearch/util/Hash.hpp"
 #include "minisearch/util/Logger.hpp"
 
 namespace minisearch::index {
@@ -77,8 +76,9 @@ auto IndexRepository::canonicalKey(const std::filesystem::path& indexedPath)
 
 auto IndexRepository::indexFileForPath(const std::filesystem::path& indexedPath)
     -> std::filesystem::path {
-  return indexesRoot() / (stableHash(canonicalKey(indexedPath)) +
-                          std::string(IndexFileExtension));
+  return indexesRoot() /
+         (util::hashToHex(util::stableHash(canonicalKey(indexedPath))) +
+          std::string(IndexFileExtension));
 }
 
 auto IndexRepository::saveCurrentIndex(const std::string& rootPath,
@@ -136,21 +136,6 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   }
 
   return current;
-}
-
-auto IndexRepository::stableHash(std::string_view value) -> std::string {
-  constexpr auto offsetBasis = 14695981039346656037ull;
-  constexpr auto prime = 1099511628211ull;
-
-  auto hash = offsetBasis;
-  for (const auto ch : value) {
-    hash ^= static_cast<unsigned char>(ch);
-    hash *= prime;
-  }
-
-  std::ostringstream stream;
-  stream << std::hex << std::setw(16) << std::setfill('0') << hash;
-  return stream.str();
 }
 
 }  // namespace minisearch::index

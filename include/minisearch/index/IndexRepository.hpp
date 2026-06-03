@@ -2,7 +2,6 @@
 
 #include <filesystem>
 #include <string>
-#include <string_view>
 
 namespace minisearch::index {
 
@@ -30,9 +29,6 @@ class IndexRepository {
                                const std::filesystem::path &indexFile) -> void;
 
   static auto loadCurrentIndex() -> CurrentIndex;
-
- private:
-  static auto stableHash(std::string_view value) -> std::string;
 };
 
 }  // namespace minisearch::index

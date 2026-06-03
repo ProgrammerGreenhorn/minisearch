@@ -8,6 +8,7 @@ message FileRecord {
   uint64 size = 3;
   int64 modified_time = 4;
   bool text_indexed = 5;
+  uint64 content_hash = 6;
 }
 
 message PostingList {

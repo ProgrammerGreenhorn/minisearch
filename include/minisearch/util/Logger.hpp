@@ -6,6 +6,8 @@ namespace minisearch::util {
 
 enum class LogLevel { Debug, Info, Warning, Error };
 
+auto relativeSourcePath(const char* file) -> std::string;
+
 class Logger {
  public:
   static auto log(LogLevel level, const std::string& message) -> void;
@@ -22,8 +24,9 @@ class Logger {
 }  // namespace minisearch::util
 
 #define MINISEARCH_LOG_LOCATION_MESSAGE(message)                         \
-  (::std::string("[") + __FILE__ + ":" + ::std::to_string(__LINE__) +    \
-   "] " + (message))
+  (::std::string("[") +                                                  \
+   ::minisearch::util::relativeSourcePath(__FILE__) + ":" +              \
+   ::std::to_string(__LINE__) + "] [" + (message) + "]")
 
 #ifdef MINISEARCH_ENABLE_DEBUG_LOG
 #define MINISEARCH_LOG_DEBUG(message) \

@@ -1,4 +1,5 @@
 #include "minisearch/index/FileScanner.hpp"
+#include "minisearch/util/Hash.hpp"
 #include "minisearch/util/Logger.hpp"
 #include <algorithm>
 #include <cctype>
@@ -34,8 +35,10 @@ auto FileScanner::scan(const std::filesystem::path& root) const
 
   if (fs::is_regular_file(base)) {
     const auto size = fs::file_size(base);
+    const auto textIndexed = shouldIndexText(base, size);
     records.emplace_back(base, size, toTimeT(fs::last_write_time(base)),
-                         shouldIndexText(base, size));
+                         textIndexed,
+                         textIndexed ? util::stableFileHash(base) : 0);
     return records;
   }
 
@@ -61,8 +64,10 @@ auto FileScanner::scan(const std::filesystem::path& root) const
       continue;
     }
 
+    const auto textIndexed = shouldIndexText(entry.path(), size);
     records.emplace_back(entry.path(), size, toTimeT(entry.last_write_time()),
-                         shouldIndexText(entry.path(), size));
+                         textIndexed,
+                         textIndexed ? util::stableFileHash(entry.path()) : 0);
   }
 
   return records;

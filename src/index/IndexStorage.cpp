@@ -34,6 +34,7 @@ auto IndexStorage::save(const std::filesystem::path &path,
     protoRecord->set_modified_time(
         static_cast<std::int64_t>(record.modifiedTime));
     protoRecord->set_text_indexed(record.textIndexed);
+    protoRecord->set_content_hash(record.contentHash);
   }
 
   for (const auto &[term, postings] : index.postings()) {
@@ -92,6 +93,7 @@ auto IndexStorage::load(const std::filesystem::path &path) const
     record.size = static_cast<std::uintmax_t>(protoRecord.size());
     record.modifiedTime = static_cast<std::time_t>(protoRecord.modified_time());
     record.textIndexed = protoRecord.text_indexed();
+    record.contentHash = protoRecord.content_hash();
     records.push_back(std::move(record));
   }
 

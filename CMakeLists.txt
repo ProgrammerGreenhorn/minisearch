@@ -34,6 +34,7 @@ add_executable(minisearch
     src/index/TextParser.cpp
     src/search/SearchEngine.cpp
     src/shell/InteractiveShell.cpp
+    src/util/Hash.cpp
     src/util/Logger.cpp
     src/util/ThreadPool.cpp
 )
@@ -52,6 +53,7 @@ target_compile_options(minisearch PRIVATE
 )
 
 target_compile_definitions(minisearch PRIVATE
+    MINISEARCH_SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
     $<$<CONFIG:Debug>:MINISEARCH_ENABLE_DEBUG_LOG>
 )
 

@@ -1,30 +1,10 @@
 #include "minisearch/index/TextParser.hpp"
 
-#include "minisearch/util/Logger.hpp"
-
 #include <cctype>
 #include <fstream>
 #include <iterator>
-#include <sstream>
 
 namespace minisearch::index {
-
-namespace {
-
-auto formatTerms(const std::vector<std::string>& terms) -> std::string {
-  std::ostringstream stream;
-  stream << '[';
-  for (std::size_t i = 0; i < terms.size(); ++i) {
-    if (i > 0) {
-      stream << ", ";
-    }
-    stream << terms[i];
-  }
-  stream << ']';
-  return stream.str();
-}
-
-}  // namespace
 
 auto TextParser::parseFile(const std::filesystem::path& path) const
     -> std::vector<std::string> {
@@ -35,12 +15,8 @@ auto TextParser::parseFile(const std::filesystem::path& path) const
 
   std::vector<std::string> terms;
   std::string line;
-  std::size_t lineNumber = 0;
   while (std::getline(input, line)) {
-    ++lineNumber;
     auto lineTerms = tokenize(line);
-    // MINISEARCH_LOG_DEBUG(path.string() + ":" + std::to_string(lineNumber) +
-    //                      " tokens " + formatTerms(lineTerms));
     terms.insert(terms.end(), std::make_move_iterator(lineTerms.begin()),
                  std::make_move_iterator(lineTerms.end()));
   }

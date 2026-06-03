@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string_view>
 
 namespace minisearch::util {
 
@@ -13,15 +14,15 @@ namespace {
 auto label(LogLevel level) -> const char* {
   switch (level) {
     case LogLevel::Debug:
-      return "debug";
+      return "DEBUG";
     case LogLevel::Info:
-      return "info";
+      return "INFO ";
     case LogLevel::Warning:
-      return "warning";
+      return "WARN ";
     case LogLevel::Error:
-      return "error";
+      return "ERROR";
   }
-  return "log";
+  return "LOG  ";
 }
 
 auto color(LogLevel level) -> const char* {
@@ -55,6 +56,17 @@ auto timestamp() -> std::string {
 }
 
 }  // namespace
+
+auto relativeSourcePath(const char* file) -> std::string {
+  const std::string_view path(file);
+  const std::string_view root(MINISEARCH_SOURCE_ROOT);
+  if (path.size() > root.size() && path.substr(0, root.size()) == root &&
+      path[root.size()] == '/') {
+    return std::string(path.substr(root.size() + 1));
+  }
+
+  return std::string(path);
+}
 
 auto Logger::log(LogLevel level, const std::string& message) -> void {
   auto& stream = level == LogLevel::Error ? std::cerr : std::cout;
