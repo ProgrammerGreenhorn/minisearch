@@ -15,37 +15,66 @@ namespace minisearch::util {
 
 class ThreadPool {
  public:
-  explicit ThreadPool(std::size_t threadCount);
+  /**
+   * @brief Start a thread pool with the requested number of workers.
+   *
+   * @param thread_count Number of worker threads to create.
+   */
+  explicit ThreadPool(std::size_t thread_count);
 
+  /**
+   * @brief Stop workers and wait for them to exit.
+   */
   ~ThreadPool();
 
-  ThreadPool(const ThreadPool &) = delete;
+  /**
+   * @brief Disable copy construction.
+   *
+   * @param other Thread pool that would have been copied.
+   */
+  ThreadPool(const ThreadPool &other) = delete;
 
-  auto operator=(const ThreadPool &) -> ThreadPool & = delete;
+  /**
+   * @brief Disable copy assignment.
+   *
+   * @param other Thread pool that would have been assigned.
+   * @return Reference to this thread pool.
+   */
+  auto operator=(const ThreadPool &other) -> ThreadPool & = delete;
 
+  /**
+   * @brief Submit a task to run on the worker pool.
+   *
+   * @tparam F Callable type.
+   * @param task_function Callable task with no arguments.
+   * @return Future that resolves to the callable result.
+   */
   template <typename F>
-  auto submit(F &&function) -> std::future<std::invoke_result_t<F>> {
+  auto submit(F &&task_function) -> std::future<std::invoke_result_t<F>> {
     using Result = std::invoke_result_t<F>;
 
-    std::shared_ptr<std::packaged_task<Result()>> task =
+    std::shared_ptr<std::packaged_task<Result()>> packaged_task =
         std::make_shared<std::packaged_task<Result()>>(
-            std::forward<F>(function));
-    std::future<Result> future = task->get_future();
+            std::forward<F>(task_function));
+    std::future<Result> task_future = packaged_task->get_future();
 
     {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::mutex> queue_lock(mutex_);
       if (stopping_) {
         throw std::runtime_error("cannot submit task to stopped thread pool");
       }
 
-      tasks_.emplace([task]() -> void { (*task)(); });
+      tasks_.emplace([packaged_task]() -> void { (*packaged_task)(); });
     }
 
     condition_.notify_one();
-    return future;
+    return task_future;
   }
 
  private:
+  /**
+   * @brief Run the worker loop for one background thread.
+   */
   auto workerLoop() -> void;
 
   std::vector<std::thread> workers_;

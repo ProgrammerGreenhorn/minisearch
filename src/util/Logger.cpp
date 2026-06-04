@@ -11,8 +11,8 @@ namespace minisearch::util {
 
 namespace {
 
-auto label(LogLevel level) -> const char* {
-  switch (level) {
+auto label(LogLevel log_level) -> const char* {
+  switch (log_level) {
     case LogLevel::Debug:
       return "DEBUG";
     case LogLevel::Info:
@@ -25,8 +25,8 @@ auto label(LogLevel level) -> const char* {
   return "LOG  ";
 }
 
-auto color(LogLevel level) -> const char* {
-  switch (level) {
+auto color(LogLevel log_level) -> const char* {
+  switch (log_level) {
     case LogLevel::Debug:
       return "\033[35m";
     case LogLevel::Info:
@@ -40,39 +40,42 @@ auto color(LogLevel level) -> const char* {
 }
 
 auto timestamp() -> std::string {
-  const std::chrono::system_clock::time_point now =
+  const std::chrono::system_clock::time_point current_time_point =
       std::chrono::system_clock::now();
-  const std::time_t time = std::chrono::system_clock::to_time_t(now);
+  const std::time_t current_time =
+      std::chrono::system_clock::to_time_t(current_time_point);
 
-  std::tm localTime{};
+  std::tm local_time{};
 #ifdef _WIN32
-  localtime_s(&localTime, &time);
+  localtime_s(&local_time, &current_time);
 #else
-  localtime_r(&time, &localTime);
+  localtime_r(&current_time, &local_time);
 #endif
 
-  std::ostringstream stream;
-  stream << std::put_time(&localTime, "%Y-%m-%d %H:%M:%S");
-  return stream.str();
+  std::ostringstream timestamp_stream;
+  timestamp_stream << std::put_time(&local_time, "%Y-%m-%d %H:%M:%S");
+  return timestamp_stream.str();
 }
 
 }  // namespace
 
-auto relativeSourcePath(const char* file) -> std::string {
-  const std::string_view path(file);
-  const std::string_view root(MINISEARCH_SOURCE_ROOT);
-  if (path.size() > root.size() && path.substr(0, root.size()) == root &&
-      path[root.size()] == '/') {
-    return std::string(path.substr(root.size() + 1));
+auto relativeSourcePath(const char* source_file) -> std::string {
+  const std::string_view source_path(source_file);
+  const std::string_view source_root(MINISEARCH_SOURCE_ROOT);
+  if (source_path.size() > source_root.size() &&
+      source_path.substr(0, source_root.size()) == source_root &&
+      source_path[source_root.size()] == '/') {
+    return std::string(source_path.substr(source_root.size() + 1));
   }
 
-  return std::string(path);
+  return std::string(source_path);
 }
 
-auto Logger::log(LogLevel level, const std::string& message) -> void {
-  std::ostream& stream = level == LogLevel::Error ? std::cerr : std::cout;
-  stream << color(level) << '[' << timestamp() << "] [" << label(level) << "] "
-         << message << "\033[0m\n";
+auto Logger::log(LogLevel log_level, const std::string& message) -> void {
+  std::ostream& output_stream =
+      log_level == LogLevel::Error ? std::cerr : std::cout;
+  output_stream << color(log_level) << '[' << timestamp() << "] ["
+                << label(log_level) << "] " << message << "\033[0m\n";
 }
 
 auto Logger::debug(const std::string& message) -> void {

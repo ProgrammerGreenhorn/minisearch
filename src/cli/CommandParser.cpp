@@ -10,67 +10,75 @@ namespace minisearch::cli {
 namespace {
 
 auto defaultThreadCount() -> std::size_t {
-  const unsigned int hardware = std::thread::hardware_concurrency();
-  return hardware == 0 ? 2 : hardware;
+  const unsigned int hardware_thread_count =
+      std::thread::hardware_concurrency();
+  return hardware_thread_count == 0 ? 2 : hardware_thread_count;
 }
 
-auto resolveDefaultIndexFile(const std::filesystem::path& path)
+auto resolveDefaultIndexFile(const std::filesystem::path& target_path)
     -> std::filesystem::path {
-  return index::IndexRepository::indexFileForPath(path);
+  return index::IndexRepository::indexFileForPath(target_path);
 }
 
-auto parseIndexOptions(CommandOptions& options, int argc, char** argv,
-                       int startIndex) -> void {
-  for (int i = startIndex; i < argc; ++i) {
-    const std::string arg = argv[i];
-    if ((arg == "--output" || arg == "-o") && i + 1 < argc) {
-      options.indexFile = argv[++i];
-      options.indexFileExplicit = true;
-    } else if (arg == "--threads" && i + 1 < argc) {
-      options.threads = static_cast<std::size_t>(std::stoul(argv[++i]));
-      if (options.threads == 0) {
-        options.threads = defaultThreadCount();
+auto parseIndexOptions(CommandOptions& command_options, int argument_count,
+                       char** argument_values, int option_start_index) -> void {
+  for (int argument_index = option_start_index; argument_index < argument_count;
+       ++argument_index) {
+    const std::string option_text = argument_values[argument_index];
+    if ((option_text == "--output" || option_text == "-o") &&
+        argument_index + 1 < argument_count) {
+      command_options.indexFile = argument_values[++argument_index];
+      command_options.indexFileExplicit = true;
+    } else if (option_text == "--threads" &&
+               argument_index + 1 < argument_count) {
+      command_options.threads = static_cast<std::size_t>(
+          std::stoul(argument_values[++argument_index]));
+      if (command_options.threads == 0) {
+        command_options.threads = defaultThreadCount();
       }
     } else {
-      throw std::invalid_argument("unknown option: " + arg);
+      throw std::invalid_argument("unknown option: " + option_text);
     }
   }
 }
 
-auto resolveIndexFile(CommandOptions& options) -> void {
-  if (!options.indexFileExplicit) {
-    options.indexFile = resolveDefaultIndexFile(options.targetPath);
+auto resolveIndexFile(CommandOptions& command_options) -> void {
+  if (!command_options.indexFileExplicit) {
+    command_options.indexFile =
+        resolveDefaultIndexFile(command_options.targetPath);
   }
 }
 
 }  // namespace
 
-auto CommandParser::parse(int argc, char** argv) const -> CommandOptions {
-  CommandOptions options;
-  options.threads = defaultThreadCount();
+auto CommandParser::parse(int argument_count,
+                          char** argument_values) const -> CommandOptions {
+  CommandOptions command_options;
+  command_options.threads = defaultThreadCount();
 
-  if (argc <= 1) {
-    options.command = Command::OpenCurrent;
-    return options;
+  if (argument_count <= 1) {
+    command_options.command = Command::OpenCurrent;
+    return command_options;
   }
 
-  const std::string command = argv[1];
-  if (command == "help" || command == "--help" || command == "-h") {
-    options.command = Command::Help;
-    return options;
+  const std::string command_text = argument_values[1];
+  if (command_text == "help" || command_text == "--help" ||
+      command_text == "-h") {
+    command_options.command = Command::Help;
+    return command_options;
   }
 
-  if (!command.empty() && command[0] == '-') {
-    options.command = Command::Unknown;
-    return options;
+  if (!command_text.empty() && command_text[0] == '-') {
+    command_options.command = Command::Unknown;
+    return command_options;
   }
 
-  options.command = Command::Index;
-  options.targetPath = argv[1];
-  options.targetPathExplicit = true;
-  parseIndexOptions(options, argc, argv, 2);
-  resolveIndexFile(options);
-  return options;
+  command_options.command = Command::Index;
+  command_options.targetPath = argument_values[1];
+  command_options.targetPathExplicit = true;
+  parseIndexOptions(command_options, argument_count, argument_values, 2);
+  resolveIndexFile(command_options);
+  return command_options;
 }
 
 auto CommandParser::helpText() -> std::string {

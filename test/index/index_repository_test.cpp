@@ -15,16 +15,16 @@ using minisearch::index::IndexRepository;
 class ScopedTempDir {
  public:
   explicit ScopedTempDir(const std::string& name) {
-    const auto suffix =
+    const auto unique_suffix =
         std::chrono::steady_clock::now().time_since_epoch().count();
     path_ = std::filesystem::temp_directory_path() /
-            (name + "_" + std::to_string(suffix));
+            (name + "_" + std::to_string(unique_suffix));
     std::filesystem::create_directories(path_);
   }
 
   ~ScopedTempDir() {
-    std::error_code ignored;
-    std::filesystem::remove_all(path_, ignored);
+    std::error_code ignored_error;
+    std::filesystem::remove_all(path_, ignored_error);
   }
 
   auto path() const -> const std::filesystem::path& { return path_; }
@@ -35,13 +35,13 @@ class ScopedTempDir {
 
 class ScopedHome {
  public:
-  explicit ScopedHome(const std::filesystem::path& home) {
-    const char* old_home = std::getenv("HOME");
-    if (old_home != nullptr) {
-      old_home_ = old_home;
+  explicit ScopedHome(const std::filesystem::path& home_path) {
+    const char* previous_home_value = std::getenv("HOME");
+    if (previous_home_value != nullptr) {
+      old_home_ = previous_home_value;
       had_old_home_ = true;
     }
-    setenv("HOME", home.string().c_str(), 1);
+    setenv("HOME", home_path.string().c_str(), 1);
   }
 
   ~ScopedHome() {
@@ -58,22 +58,22 @@ class ScopedHome {
 };
 
 TEST(IndexRepositoryTest, RepositoryPathsAreUnderHomeDirectory) {
-  ScopedTempDir temp("minisearch_index_repository_home");
-  ScopedHome home(temp.path());
+  ScopedTempDir temp_dir("minisearch_index_repository_home");
+  ScopedHome scoped_home(temp_dir.path());
 
-  EXPECT_EQ(IndexRepository::dataRoot(), temp.path() / ".minisearch");
+  EXPECT_EQ(IndexRepository::dataRoot(), temp_dir.path() / ".minisearch");
   EXPECT_EQ(IndexRepository::indexesRoot(),
-            temp.path() / ".minisearch" / "indexes");
+            temp_dir.path() / ".minisearch" / "indexes");
   EXPECT_EQ(IndexRepository::currentPointerFile(),
-            temp.path() / ".minisearch" / "current.pb");
+            temp_dir.path() / ".minisearch" / "current.pb");
 }
 
 TEST(IndexRepositoryTest, IndexFileForPathUsesIndexesDirectoryAndPbExtension) {
-  ScopedTempDir temp("minisearch_index_repository_index_file");
-  ScopedHome home(temp.path());
+  ScopedTempDir temp_dir("minisearch_index_repository_index_file");
+  ScopedHome scoped_home(temp_dir.path());
 
   const auto index_file =
-      IndexRepository::indexFileForPath(temp.path() / "src");
+      IndexRepository::indexFileForPath(temp_dir.path() / "src");
 
   EXPECT_EQ(index_file.parent_path(), IndexRepository::indexesRoot());
   EXPECT_EQ(index_file.extension(), std::filesystem::path(".pb"));
@@ -81,15 +81,15 @@ TEST(IndexRepositoryTest, IndexFileForPathUsesIndexesDirectoryAndPbExtension) {
 }
 
 TEST(IndexRepositoryTest, SaveAndLoadCurrentIndexRoundTripsPointer) {
-  ScopedTempDir temp("minisearch_index_repository_current");
-  ScopedHome home(temp.path());
-  const auto index_file = temp.path() / "custom.pb";
+  ScopedTempDir temp_dir("minisearch_index_repository_current");
+  ScopedHome scoped_home(temp_dir.path());
+  const auto index_file = temp_dir.path() / "custom.pb";
 
   IndexRepository::saveCurrentIndex("root-path", index_file);
-  const auto current = IndexRepository::loadCurrentIndex();
+  const auto current_index = IndexRepository::loadCurrentIndex();
 
-  EXPECT_EQ(current.rootPath, "root-path");
-  EXPECT_EQ(current.indexFile, IndexRepository::canonicalKey(index_file));
+  EXPECT_EQ(current_index.rootPath, "root-path");
+  EXPECT_EQ(current_index.indexFile, IndexRepository::canonicalKey(index_file));
 }
 
 }  // namespace

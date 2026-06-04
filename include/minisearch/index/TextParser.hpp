@@ -15,10 +15,22 @@ struct ParsedTerm {
 
 class TextParser {
  public:
-  auto parseFile(const std::filesystem::path& path) const
+  /**
+   * @brief Parse a text file into lowercase terms with line numbers.
+   *
+   * @param file_path File path to read.
+   * @return Parsed terms found in the file.
+   */
+  auto parseFile(const std::filesystem::path& file_path) const
       -> std::vector<ParsedTerm>;
 
-  static auto tokenize(std::string_view text) -> std::vector<std::string>;
+  /**
+   * @brief Tokenize text into lowercase alphanumeric terms.
+   *
+   * @param input_text Text to tokenize.
+   * @return Lowercase terms extracted from the input text.
+   */
+  static auto tokenize(std::string_view input_text) -> std::vector<std::string>;
 };
 
 }  // namespace minisearch::index

@@ -14,116 +14,122 @@ namespace {
 constexpr std::string_view HighlightStart = "\x1b[1;33m";
 constexpr std::string_view HighlightEnd = "\x1b[0m";
 
-auto isTermChar(unsigned char ch) -> bool {
-  return std::isalnum(ch) || ch == '_';
+auto isTermChar(unsigned char character) -> bool {
+  return std::isalnum(character) || character == '_';
 }
 
-auto lowerToken(std::string_view token) -> std::string {
-  std::string lowered;
-  lowered.reserve(token.size());
-  for (const unsigned char ch : token) {
-    lowered.push_back(static_cast<char>(std::tolower(ch)));
+auto lowerToken(std::string_view token_text) -> std::string {
+  std::string lowered_token;
+  lowered_token.reserve(token_text.size());
+  for (const unsigned char character : token_text) {
+    lowered_token.push_back(static_cast<char>(std::tolower(character)));
   }
-  return lowered;
+  return lowered_token;
 }
 
 }  // namespace
 
-SearchEngine::SearchEngine(const index::InvertedIndex& index) : index_(index) {}
+SearchEngine::SearchEngine(const index::InvertedIndex& search_index)
+    : index_(search_index) {}
 
-auto SearchEngine::findByName(const std::string& query, std::size_t limit) const
-    -> std::vector<index::FileRecord> {
-  return index_.findByName(query, limit);
+auto SearchEngine::findByName(const std::string& query_text, std::size_t limit)
+    const -> std::vector<index::FileRecord> {
+  return index_.findByName(query_text, limit);
 }
 
-auto SearchEngine::grep(const std::string& query,
+auto SearchEngine::grep(const std::string& query_text,
                         std::size_t limit) const -> std::vector<GrepMatch> {
-  return index_.findByTerms(index::TextParser::tokenize(query), limit);
+  return index_.findByTerms(index::TextParser::tokenize(query_text), limit);
 }
 
-auto SearchEngine::grepLines(const std::string& query,
+auto SearchEngine::grepLines(const std::string& query_text,
                              std::size_t limit) const -> std::vector<GrepLine> {
   if (limit == 0) {
     return {};
   }
 
-  const std::vector<std::string> terms = index::TextParser::tokenize(query);
-  const std::vector<GrepMatch> matches =
-      index_.findByTerms(terms, index_.fileCount());
+  const std::vector<std::string> query_terms =
+      index::TextParser::tokenize(query_text);
+  const std::vector<GrepMatch> file_matches =
+      index_.findByTerms(query_terms, index_.fileCount());
 
-  std::vector<GrepLine> lines;
-  for (const auto& match : matches) {
-    std::unordered_set<std::uint32_t> wantedLines(match.lines.begin(),
-                                                  match.lines.end());
-    std::ifstream input(match.record.path);
-    std::string text;
-    std::uint32_t lineNumber = 1;
-    while (std::getline(input, text) && !wantedLines.empty()) {
-      if (wantedLines.erase(lineNumber) > 0) {
-        lines.push_back(
-            {match.record, lineNumber, text, highlightTerms(text, terms)});
-        if (lines.size() >= limit) {
-          return lines;
+  std::vector<GrepLine> matching_lines;
+  for (const auto& file_match : file_matches) {
+    std::unordered_set<std::uint32_t> wanted_lines(file_match.lines.begin(),
+                                                   file_match.lines.end());
+    std::ifstream input_stream(file_match.record.path);
+    std::string line_text;
+    std::uint32_t line_number = 1;
+    while (std::getline(input_stream, line_text) && !wanted_lines.empty()) {
+      if (wanted_lines.erase(line_number) > 0) {
+        matching_lines.push_back({file_match.record, line_number, line_text,
+                                  highlightTerms(line_text, query_terms)});
+        if (matching_lines.size() >= limit) {
+          return matching_lines;
         }
       }
-      ++lineNumber;
+      ++line_number;
     }
   }
 
-  return lines;
+  return matching_lines;
 }
 
-auto SearchEngine::formatRecord(const index::FileRecord& record)
+auto SearchEngine::formatRecord(const index::FileRecord& file_record)
     -> std::string {
-  std::ostringstream stream;
-  stream << record.path.string() << " (" << record.size << " bytes)";
-  return stream.str();
+  std::ostringstream output_stream;
+  output_stream << file_record.path.string() << " (" << file_record.size
+                << " bytes)";
+  return output_stream.str();
 }
 
-auto SearchEngine::formatGrepLine(const GrepLine& line) -> std::string {
-  std::ostringstream stream;
-  stream << line.record.path.string() << ':' << line.line << ":\n  "
-         << line.highlightedText;
-  return stream.str();
+auto SearchEngine::formatGrepLine(const GrepLine& grep_line) -> std::string {
+  std::ostringstream output_stream;
+  output_stream << grep_line.record.path.string() << ':' << grep_line.line
+                << ":\n  " << grep_line.highlightedText;
+  return output_stream.str();
 }
 
-auto SearchEngine::highlightTerms(std::string_view text,
-                                  const std::vector<std::string>& terms)
+auto SearchEngine::highlightTerms(std::string_view source_text,
+                                  const std::vector<std::string>& query_terms)
     -> std::string {
-  if (terms.empty()) {
-    return std::string(text);
+  if (query_terms.empty()) {
+    return std::string(source_text);
   }
 
-  const std::unordered_set<std::string> termSet(terms.begin(), terms.end());
-  std::string highlighted;
-  highlighted.reserve(text.size());
+  const std::unordered_set<std::string> query_term_set(query_terms.begin(),
+                                                       query_terms.end());
+  std::string highlighted_text;
+  highlighted_text.reserve(source_text.size());
 
-  std::size_t offset = 0;
-  while (offset < text.size()) {
-    const unsigned char ch = static_cast<unsigned char>(text[offset]);
-    if (!isTermChar(ch)) {
-      highlighted.push_back(text[offset]);
-      ++offset;
+  std::size_t token_offset = 0;
+  while (token_offset < source_text.size()) {
+    const unsigned char character =
+        static_cast<unsigned char>(source_text[token_offset]);
+    if (!isTermChar(character)) {
+      highlighted_text.push_back(source_text[token_offset]);
+      ++token_offset;
       continue;
     }
 
-    const std::size_t tokenStart = offset;
-    while (offset < text.size() &&
-           isTermChar(static_cast<unsigned char>(text[offset]))) {
-      ++offset;
+    const std::size_t token_start = token_offset;
+    while (token_offset < source_text.size() &&
+           isTermChar(static_cast<unsigned char>(source_text[token_offset]))) {
+      ++token_offset;
     }
 
-    const std::string_view token = text.substr(tokenStart, offset - tokenStart);
-    if (termSet.find(lowerToken(token)) != termSet.end()) {
-      highlighted.append(HighlightStart);
-      highlighted.append(token);
-      highlighted.append(HighlightEnd);
+    const std::string_view token_text =
+        source_text.substr(token_start, token_offset - token_start);
+    if (query_term_set.find(lowerToken(token_text)) != query_term_set.end()) {
+      highlighted_text.append(HighlightStart);
+      highlighted_text.append(token_text);
+      highlighted_text.append(HighlightEnd);
     } else {
-      highlighted.append(token);
+      highlighted_text.append(token_text);
     }
   }
 
-  return highlighted;
+  return highlighted_text;
 }
 
 }  // namespace minisearch::search

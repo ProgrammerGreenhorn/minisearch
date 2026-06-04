@@ -13,16 +13,16 @@ namespace {
 class ScopedTempDir {
  public:
   explicit ScopedTempDir(const std::string& name) {
-    const auto suffix =
+    const auto unique_suffix =
         std::chrono::steady_clock::now().time_since_epoch().count();
     path_ = std::filesystem::temp_directory_path() /
-            (name + "_" + std::to_string(suffix));
+            (name + "_" + std::to_string(unique_suffix));
     std::filesystem::create_directories(path_);
   }
 
   ~ScopedTempDir() {
-    std::error_code ignored;
-    std::filesystem::remove_all(path_, ignored);
+    std::error_code ignored_error;
+    std::filesystem::remove_all(path_, ignored_error);
   }
 
   auto path() const -> const std::filesystem::path& { return path_; }
@@ -41,22 +41,22 @@ TEST(HashTest, HashToHexPadsToSixteenLowercaseDigits) {
 }
 
 TEST(HashTest, StableFileHashMatchesStableHashOfFileContents) {
-  ScopedTempDir temp("minisearch_hash_file");
-  const auto file = temp.path() / "data.txt";
+  ScopedTempDir temp_dir("minisearch_hash_file");
+  const auto target_file = temp_dir.path() / "data.txt";
   {
-    std::ofstream output(file);
-    ASSERT_TRUE(output);
-    output << "hello";
+    std::ofstream output_stream(target_file);
+    ASSERT_TRUE(output_stream);
+    output_stream << "hello";
   }
 
-  EXPECT_EQ(minisearch::util::stableFileHash(file),
+  EXPECT_EQ(minisearch::util::stableFileHash(target_file),
             minisearch::util::stableHash("hello"));
 }
 
 TEST(HashTest, StableFileHashReturnsZeroForMissingFile) {
-  ScopedTempDir temp("minisearch_hash_missing");
+  ScopedTempDir temp_dir("minisearch_hash_missing");
 
-  EXPECT_EQ(minisearch::util::stableFileHash(temp.path() / "missing"), 0U);
+  EXPECT_EQ(minisearch::util::stableFileHash(temp_dir.path() / "missing"), 0U);
 }
 
 }  // namespace

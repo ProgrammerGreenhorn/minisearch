@@ -18,7 +18,21 @@ struct CommandOptions {
 
 class CommandParser {
  public:
-  auto parse(int argc, char** argv) const -> CommandOptions;
+  /**
+   * @brief Parse command-line arguments into command options.
+   *
+   * @param argument_count Number of command-line arguments.
+   * @param argument_values Command-line argument vector.
+   * @return Parsed command options.
+   */
+  auto parse(int argument_count,
+             char** argument_values) const -> CommandOptions;
+
+  /**
+   * @brief Build the command-line help text.
+   *
+   * @return Usage text shown for help and invalid commands.
+   */
   static auto helpText() -> std::string;
 };
 

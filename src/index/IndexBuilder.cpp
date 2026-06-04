@@ -22,182 +22,203 @@ namespace {
 
 using util::ThreadPool;
 
-auto recordKey(const std::filesystem::path& path) -> std::string {
-  return path.lexically_normal().string();
+auto recordKey(const std::filesystem::path& record_path) -> std::string {
+  return record_path.lexically_normal().string();
 }
 
-auto sameIndexedFile(const FileRecord& current,
-                     const FileRecord& previous) -> bool {
-  return current.size == previous.size &&
-         current.textIndexed == previous.textIndexed &&
-         current.contentHash == previous.contentHash;
+auto sameIndexedFile(const FileRecord& current_record,
+                     const FileRecord& previous_record) -> bool {
+  return current_record.size == previous_record.size &&
+         current_record.textIndexed == previous_record.textIndexed &&
+         current_record.contentHash == previous_record.contentHash;
 }
 
-auto loadPreviousIndex(const std::filesystem::path& indexFile,
-                       const IndexStorage& storage)
+auto loadPreviousIndex(const std::filesystem::path& index_file,
+                       const IndexStorage& index_storage)
     -> std::optional<InvertedIndex> {
-  std::error_code error;
-  const bool exists = std::filesystem::exists(indexFile, error);
-  if (error) {
+  std::error_code exists_error;
+  const bool index_exists = std::filesystem::exists(index_file, exists_error);
+  if (exists_error) {
     MINISEARCH_LOG_WARNING("failed to check existing index file: " +
-                           indexFile.string());
+                           index_file.string());
     return std::nullopt;
   }
 
-  if (!exists) {
+  if (!index_exists) {
     return std::nullopt;
   }
 
   try {
-    InvertedIndex index = storage.load(indexFile);
-    MINISEARCH_LOG_INFO("loaded existing index: " + indexFile.string());
-    return index;
-  } catch (const std::exception& error) {
+    InvertedIndex previous_index = index_storage.load(index_file);
+    MINISEARCH_LOG_INFO("loaded existing index: " + index_file.string());
+    return previous_index;
+  } catch (const std::exception& exception) {
     MINISEARCH_LOG_WARNING("failed to load existing index; rebuilding: " +
-                           std::string(error.what()));
+                           std::string(exception.what()));
     return std::nullopt;
   }
 }
 
-auto previousRecordsByPath(const InvertedIndex& index)
+auto previousRecordsByPath(const InvertedIndex& previous_index)
     -> std::unordered_map<std::string, FileRecord> {
-  std::unordered_map<std::string, FileRecord> records;
-  records.reserve(index.records().size());
-  for (const auto& record : index.records()) {
-    records.emplace(recordKey(record.path), record);
+  std::unordered_map<std::string, FileRecord> records_by_path;
+  records_by_path.reserve(previous_index.records().size());
+  for (const auto& file_record : previous_index.records()) {
+    records_by_path.emplace(recordKey(file_record.path), file_record);
   }
-  return records;
+  return records_by_path;
 }
 
-auto parseChangedTextFiles(const InvertedIndex& index,
-                           const std::vector<InvertedIndex::DocumentId>& ids,
-                           std::size_t threads)
-    -> std::vector<std::vector<ParsedTerm>> {
-  std::vector<std::vector<ParsedTerm>> termsByDocument(index.fileCount());
-  TextParser parser;
-  ThreadPool pool(threads);
+auto parseChangedTextFiles(
+    const InvertedIndex& current_index,
+    const std::vector<InvertedIndex::DocumentId>& document_ids_to_parse,
+    std::size_t thread_count) -> std::vector<std::vector<ParsedTerm>> {
+  struct ParseResult {
+    InvertedIndex::DocumentId document_id;
+    std::vector<ParsedTerm> parsed_terms;
+  };
 
-  using ParseResult =
-      std::pair<InvertedIndex::DocumentId, std::vector<ParsedTerm>>;
-  std::vector<std::future<ParseResult>> futures;
+  std::vector<std::vector<ParsedTerm>> terms_by_document(
+      current_index.fileCount());
+  TextParser text_parser;
+  ThreadPool thread_pool(thread_count);
 
-  for (const auto id : ids) {
-    const FileRecord& record = index.records()[id];
-    MINISEARCH_LOG_INFO("parsing text file: " + record.path.string());
-    futures.push_back(pool.submit([record, &parser]() -> ParseResult {
-      return {record.id, parser.parseFile(record.path)};
-    }));
+  std::vector<std::future<ParseResult>> parse_futures;
+
+  for (const auto document_id : document_ids_to_parse) {
+    const FileRecord& file_record = current_index.records()[document_id];
+    MINISEARCH_LOG_INFO("parsing text file: " + file_record.path.string());
+    parse_futures.push_back(
+        thread_pool.submit([file_record, &text_parser]() -> ParseResult {
+          return {file_record.id, text_parser.parseFile(file_record.path)};
+        }));
   }
 
-  for (auto& future : futures) {
-    ParseResult result = future.get();
-    termsByDocument[result.first] = std::move(result.second);
+  for (auto& parse_future : parse_futures) {
+    ParseResult parse_result = parse_future.get();
+    terms_by_document[parse_result.document_id] =
+        std::move(parse_result.parsed_terms);
   }
 
-  return termsByDocument;
+  return terms_by_document;
 }
 
 }  // namespace
 
-auto IndexBuilder::build(const Options& options) const -> Result {
+auto IndexBuilder::build(const Options& build_options) const -> Result {
   MINISEARCH_LOG_INFO("scanning files...");
-  FileScanner scanner;
-  std::vector<FileRecord> records = scanner.scan(options.targetPath);
+  FileScanner file_scanner;
+  std::vector<FileRecord> scanned_records =
+      file_scanner.scan(build_options.targetPath);
   // Sort records by path to ensure deterministic document IDs across runs
-  std::sort(records.begin(), records.end(),
-            [](const FileRecord& left, const FileRecord& right) -> bool {
-              return recordKey(left.path) < recordKey(right.path);
+  std::sort(scanned_records.begin(), scanned_records.end(),
+            [](const FileRecord& left_record,
+               const FileRecord& right_record) -> bool {
+              return recordKey(left_record.path) < recordKey(right_record.path);
             });
 
-  IndexStorage storage;
-  const std::optional<InvertedIndex> previousIndex =
-      loadPreviousIndex(options.indexFile, storage);
-  const std::unordered_map<std::string, FileRecord> previousByPath =
-      previousIndex.has_value() ? previousRecordsByPath(*previousIndex)
-                                : std::unordered_map<std::string, FileRecord>{};
+  IndexStorage index_storage;
+  const std::optional<InvertedIndex> previous_index =
+      loadPreviousIndex(build_options.indexFile, index_storage);
+  const std::unordered_map<std::string, FileRecord> previous_records_by_path =
+      previous_index.has_value()
+          ? previousRecordsByPath(*previous_index)
+          : std::unordered_map<std::string, FileRecord>{};
 
-  InvertedIndex index;
+  InvertedIndex rebuilt_index;
   std::unordered_map<InvertedIndex::DocumentId, InvertedIndex::DocumentId>
-      reusedIds;
-  std::vector<InvertedIndex::DocumentId> idsToParse;
-  std::size_t reusedTextFiles = 0;
+      reused_document_ids;
+  std::vector<InvertedIndex::DocumentId> document_ids_to_parse;
+  std::size_t reused_text_files = 0;
 
-  for (auto& record : records) {
-    const std::string key = recordKey(record.path);
-    const auto previous = previousByPath.find(key);
-    const bool canReuse = previous != previousByPath.end() &&
-                          sameIndexedFile(record, previous->second);
-    const bool textIndexed = record.textIndexed;
-    const InvertedIndex::DocumentId previousId =
-        canReuse ? previous->second.id : InvertedIndex::DocumentId{};
-    const InvertedIndex::DocumentId id = index.addRecord(std::move(record));
+  for (auto& file_record : scanned_records) {
+    const std::string record_path_key = recordKey(file_record.path);
+    const auto previous_record_entry =
+        previous_records_by_path.find(record_path_key);
+    const bool can_reuse_record =
+        previous_record_entry != previous_records_by_path.end() &&
+        sameIndexedFile(file_record, previous_record_entry->second);
+    const bool text_indexed = file_record.textIndexed;
+    const InvertedIndex::DocumentId previous_document_id =
+        can_reuse_record ? previous_record_entry->second.id
+                         : InvertedIndex::DocumentId{};
+    const InvertedIndex::DocumentId document_id =
+        rebuilt_index.addRecord(std::move(file_record));
 
-    if (canReuse && textIndexed) {
-      reusedIds.emplace(previousId, id);
-      ++reusedTextFiles;
-    } else if (textIndexed) {
-      idsToParse.push_back(id);
+    if (can_reuse_record && text_indexed) {
+      reused_document_ids.emplace(previous_document_id, document_id);
+      ++reused_text_files;
+    } else if (text_indexed) {
+      document_ids_to_parse.push_back(document_id);
     }
   }
-  // the tremsByDocument 's structure is like this:
+  // The terms_by_document structure is:
   // [
-  //   [ { term: "term1", line: 1 }, { term: "term2", line: 1 }, ... ], // terms for document 0
-  //   [ { term: "term3", line: 2 }, { term: "term4", line: 2 }, ... ], // terms for document 1
+  //   [ { term: "term1", line: 1 }, { term: "term2", line: 1 }, ... ], // terms
+  //   for document 0 [ { term: "term3", line: 2 }, { term: "term4", line: 2 },
+  //   ... ], // terms for document 1
   //   ...
   // ]
-  std::vector<std::vector<ParsedTerm>> termsByDocument(index.fileCount());
-  if (idsToParse.empty()) {
+  std::vector<std::vector<ParsedTerm>> terms_by_document(
+      rebuilt_index.fileCount());
+  if (document_ids_to_parse.empty()) {
     MINISEARCH_LOG_INFO("no changed text files to parse");
   } else {
     MINISEARCH_LOG_INFO("parsing changed text files...");
-    termsByDocument = parseChangedTextFiles(index, idsToParse, options.threads);
+    terms_by_document = parseChangedTextFiles(
+        rebuilt_index, document_ids_to_parse, build_options.threads);
   }
 
-  if (previousIndex.has_value()) {
+  if (previous_index.has_value()) {
     // Each entry in linePostings maps one term to the list of documents and
     // line numbers where that term appeared in the previous index. For reused
     // files, copy those term occurrences into the new document id so unchanged
     // files do not need to be parsed again.
-    for (const auto& [term, postings] : previousIndex->linePostings()) {
-      for (const auto& posting : postings) {
-        const auto reused = reusedIds.find(posting.documentId);
-        if (reused == reusedIds.end()) {
+    for (const auto& [term_text, previous_postings] :
+         previous_index->linePostings()) {
+      for (const auto& line_posting : previous_postings) {
+        const auto reused_document_id_entry =
+            reused_document_ids.find(line_posting.documentId);
+        if (reused_document_id_entry == reused_document_ids.end()) {
           continue;
         }
-        const auto newId = reused->second;
-        // the term and line numbers constitute a parsedterm;
-        for (const auto line : posting.lines) {
-          termsByDocument[newId].push_back({term, line});
+        const auto new_document_id = reused_document_id_entry->second;
+        // The term and line number together form a ParsedTerm for the new id.
+        for (const auto line_number : line_posting.lines) {
+          terms_by_document[new_document_id].push_back(
+              {term_text, line_number});
         }
       }
     }
   }
 
-  for (std::size_t id = 0; id < termsByDocument.size(); ++id) {
-    index.addTermOccurrences(static_cast<InvertedIndex::DocumentId>(id),
-                             termsByDocument[id]);
+  for (std::size_t document_index = 0;
+       document_index < terms_by_document.size(); ++document_index) {
+    rebuilt_index.addTermOccurrences(
+        static_cast<InvertedIndex::DocumentId>(document_index),
+        terms_by_document[document_index]);
   }
 
-  MINISEARCH_LOG_INFO("incremental index: reused " +
-                      std::to_string(reusedTextFiles) +
-                      " text file(s), parsed " +
-                      std::to_string(idsToParse.size()) + " text file(s)");
+  MINISEARCH_LOG_INFO(
+      "incremental index: reused " + std::to_string(reused_text_files) +
+      " text file(s), parsed " + std::to_string(document_ids_to_parse.size()) +
+      " text file(s)");
 
-  const std::string rootPath =
-      IndexRepository::canonicalKey(options.targetPath);
-  storage.save(options.indexFile, index, rootPath);
-  IndexRepository::saveCurrentIndex(rootPath, options.indexFile);
+  const std::string root_path =
+      IndexRepository::canonicalKey(build_options.targetPath);
+  index_storage.save(build_options.indexFile, rebuilt_index, root_path);
+  IndexRepository::saveCurrentIndex(root_path, build_options.indexFile);
 
-  MINISEARCH_LOG_INFO("index written to " + options.indexFile.string());
-  MINISEARCH_LOG_INFO("current index root set to " + rootPath);
+  MINISEARCH_LOG_INFO("index written to " + build_options.indexFile.string());
+  MINISEARCH_LOG_INFO("current index root set to " + root_path);
 
-  Result result;
-  result.index = std::move(index);
-  result.rootPath = rootPath;
-  result.indexFile = options.indexFile;
-  result.reusedTextFiles = reusedTextFiles;
-  result.parsedTextFiles = idsToParse.size();
-  return result;
+  Result build_result;
+  build_result.index = std::move(rebuilt_index);
+  build_result.rootPath = root_path;
+  build_result.indexFile = build_options.indexFile;
+  build_result.reusedTextFiles = reused_text_files;
+  build_result.parsedTextFiles = document_ids_to_parse.size();
+  return build_result;
 }
 
 }  // namespace minisearch::index

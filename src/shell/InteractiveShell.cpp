@@ -12,121 +12,123 @@ namespace minisearch::shell {
 
 namespace {
 
-auto trim(std::string value) -> std::string {
-  auto first = value.begin();
-  while (first != value.end() &&
-         std::isspace(static_cast<unsigned char>(*first))) {
-    ++first;
+auto trim(std::string input_text) -> std::string {
+  auto first_non_space = input_text.begin();
+  while (first_non_space != input_text.end() &&
+         std::isspace(static_cast<unsigned char>(*first_non_space))) {
+    ++first_non_space;
   }
 
-  auto last = value.end();
-  while (last != first &&
-         std::isspace(static_cast<unsigned char>(*(last - 1)))) {
-    --last;
+  auto last_non_space = input_text.end();
+  while (last_non_space != first_non_space &&
+         std::isspace(static_cast<unsigned char>(*(last_non_space - 1)))) {
+    --last_non_space;
   }
 
-  return std::string(first, last);
+  return std::string(first_non_space, last_non_space);
 }
 
-auto splitCommand(const std::string& line)
+auto splitCommand(const std::string& input_line)
     -> std::pair<std::string, std::string> {
-  std::istringstream stream(line);
-  std::string command;
-  stream >> command;
+  std::istringstream input_stream(input_line);
+  std::string command_name;
+  input_stream >> command_name;
 
-  std::string rest;
-  std::getline(stream, rest);
-  return {command, trim(rest)};
+  std::string command_argument;
+  std::getline(input_stream, command_argument);
+  return {command_name, trim(command_argument)};
 }
 
-auto printRecords(const std::vector<index::FileRecord>& records) -> void {
-  for (const auto& record : records) {
-    std::cout << search::SearchEngine::formatRecord(record) << '\n';
+auto printRecords(const std::vector<index::FileRecord>& file_records) -> void {
+  for (const auto& file_record : file_records) {
+    std::cout << search::SearchEngine::formatRecord(file_record) << '\n';
   }
-  std::cout << records.size() << " result(s)\n";
+  std::cout << file_records.size() << " result(s)\n";
 }
 
 auto printGrepMatches(
-    const std::vector<search::SearchEngine::GrepLine>& matches) -> void {
-  for (std::size_t index = 0; index < matches.size(); ++index) {
-    std::cout << search::SearchEngine::formatGrepLine(matches[index]) << '\n';
-    if (index + 1 < matches.size()) {
+    const std::vector<search::SearchEngine::GrepLine>& grep_lines) -> void {
+  for (std::size_t match_index = 0; match_index < grep_lines.size();
+       ++match_index) {
+    std::cout << search::SearchEngine::formatGrepLine(grep_lines[match_index])
+              << '\n';
+    if (match_index + 1 < grep_lines.size()) {
       std::cout << '\n';
     }
   }
-  std::cout << matches.size() << " line(s)\n";
+  std::cout << grep_lines.size() << " line(s)\n";
 }
 
 }  // namespace
 
-InteractiveShell::InteractiveShell(index::InvertedIndex index,
-                                   std::string rootPath,
-                                   std::filesystem::path indexFile)
-    : index_(std::move(index)),
-      rootPath_(std::move(rootPath)),
-      indexFile_(std::move(indexFile)) {}
+InteractiveShell::InteractiveShell(index::InvertedIndex search_index,
+                                   std::string root_path,
+                                   std::filesystem::path index_file)
+    : index_(std::move(search_index)),
+      rootPath_(std::move(root_path)),
+      indexFile_(std::move(index_file)) {}
 
 auto InteractiveShell::run() -> int {
   std::cout << "MiniSearch interactive shell. Type \"help\" for commands.\n";
 
-  std::string line;
+  std::string input_line;
   while (true) {
     std::cout << "(minisearch) " << std::flush;
-    if (!std::getline(std::cin, line)) {
+    if (!std::getline(std::cin, input_line)) {
       std::cout << '\n';
       return 0;
     }
 
-    if (!execute(line)) {
+    if (!execute(input_line)) {
       return 0;
     }
   }
 }
 
-auto InteractiveShell::execute(const std::string& line) -> bool {
-  const std::pair<std::string, std::string> parsedCommand =
-      splitCommand(trim(line));
-  const std::string& command = parsedCommand.first;
-  const std::string& argument = parsedCommand.second;
-  if (command.empty()) {
+auto InteractiveShell::execute(const std::string& input_line) -> bool {
+  const std::pair<std::string, std::string> parsed_command =
+      splitCommand(trim(input_line));
+  const std::string& command_name = parsed_command.first;
+  const std::string& command_argument = parsed_command.second;
+  if (command_name.empty()) {
     return true;
   }
 
-  if (command == "quit" || command == "exit" || command == "q") {
+  if (command_name == "quit" || command_name == "exit" || command_name == "q") {
     return false;
   }
 
-  if (command == "help" || command == "h") {
+  if (command_name == "help" || command_name == "h") {
     printHelp();
     return true;
   }
 
-  if (command == "stats") {
+  if (command_name == "stats") {
     printStats();
     return true;
   }
 
-  if (command == "path") {
+  if (command_name == "path") {
     printPath();
     return true;
   }
 
-  if (command == "show") {
+  if (command_name == "show") {
     printShow();
     return true;
   }
 
-  if (command == "find") {
-    printFind(argument);
+  if (command_name == "find") {
+    printFind(command_argument);
     return true;
   }
 
-  if (command == "grep") {
-    printGrep(argument);
+  if (command_name == "grep") {
+    printGrep(command_argument);
     return true;
   }
 
-  std::cout << "unknown command: " << command << '\n';
+  std::cout << "unknown command: " << command_name << '\n';
   return true;
 }
 
@@ -154,31 +156,31 @@ auto InteractiveShell::printPath() const -> void {
 }
 
 auto InteractiveShell::printShow() const -> void {
-  const std::vector<index::FileRecord>& records = index_.records();
-  for (const auto& record : records) {
-    std::cout << search::SearchEngine::formatRecord(record) << '\n';
+  const std::vector<index::FileRecord>& file_records = index_.records();
+  for (const auto& file_record : file_records) {
+    std::cout << search::SearchEngine::formatRecord(file_record) << '\n';
   }
-  std::cout << records.size() << " file(s)\n";
+  std::cout << file_records.size() << " file(s)\n";
 }
 
-auto InteractiveShell::printFind(const std::string& query) const -> void {
-  if (query.empty()) {
+auto InteractiveShell::printFind(const std::string& query_text) const -> void {
+  if (query_text.empty()) {
     std::cout << "usage: find <query>\n";
     return;
   }
 
-  const search::SearchEngine engine(index_);
-  printRecords(engine.findByName(query));
+  const search::SearchEngine search_engine(index_);
+  printRecords(search_engine.findByName(query_text));
 }
 
-auto InteractiveShell::printGrep(const std::string& query) const -> void {
-  if (query.empty()) {
+auto InteractiveShell::printGrep(const std::string& query_text) const -> void {
+  if (query_text.empty()) {
     std::cout << "usage: grep <query>\n";
     return;
   }
 
-  const search::SearchEngine engine(index_);
-  printGrepMatches(engine.grepLines(query));
+  const search::SearchEngine search_engine(index_);
+  printGrepMatches(search_engine.grepLines(query_text));
 }
 
 }  // namespace minisearch::shell

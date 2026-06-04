@@ -1,0 +1,26 @@
+#include <wx/app.h>
+
+#include <exception>
+
+#include "minisearch/gui/MainFrame.hpp"
+#include "minisearch/util/Logger.hpp"
+
+namespace {
+
+class MiniSearchGuiApp : public wxApp {
+ public:
+  auto OnInit() -> bool override {
+    try {
+      auto* main_frame = new minisearch::gui::MainFrame();
+      main_frame->Show(true);
+      return true;
+    } catch (const std::exception& exception) {
+      MINISEARCH_LOG_ERROR(exception.what());
+      return false;
+    }
+  }
+};
+
+}  // namespace
+
+wxIMPLEMENT_APP(MiniSearchGuiApp);

@@ -24,7 +24,13 @@ class IndexBuilder {
     std::size_t parsedTextFiles = 0;
   };
 
-  auto build(const Options& options) const -> Result;
+  /**
+   * @brief Build or refresh an index for a target path.
+   *
+   * @param build_options Target path, output index file, and worker count.
+   * @return Built index plus metadata about the indexing run.
+   */
+  auto build(const Options& build_options) const -> Result;
 };
 
 }  // namespace minisearch::index

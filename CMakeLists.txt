@@ -7,8 +7,13 @@ endif()
 project(MiniSearch VERSION 0.1.0 LANGUAGES CXX)
 
 option(MINISEARCH_BUILD_TESTS "Build MiniSearch tests" ON)
+option(MINISEARCH_BUILD_GUI "Build the wxWidgets GUI" ON)
 
 find_package(Protobuf REQUIRED)
+
+if(MINISEARCH_BUILD_GUI)
+    find_package(wxWidgets REQUIRED COMPONENTS core base)
+endif()
 
 if(MINISEARCH_BUILD_TESTS)
     include(FetchContent)
@@ -90,6 +95,25 @@ target_compile_options(minisearch PRIVATE
     $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang>>:-O0 -g3>
 )
 
+if(MINISEARCH_BUILD_GUI)
+    include(${wxWidgets_USE_FILE})
+
+    add_executable(minisearch-gui WIN32
+        src/gui/main.cpp
+        src/gui/MainFrame.cpp
+    )
+
+    target_link_libraries(minisearch-gui
+        PRIVATE
+        minisearch_lib
+        ${wxWidgets_LIBRARIES})
+
+    target_compile_options(minisearch-gui PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+        $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang>>:-O0 -g3>
+    )
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
     target_link_libraries(minisearch_lib PUBLIC stdc++fs)
 endif()
@@ -102,3 +126,9 @@ endif()
 install(TARGETS minisearch
     RUNTIME DESTINATION bin
 )
+
+if(MINISEARCH_BUILD_GUI)
+    install(TARGETS minisearch-gui
+        RUNTIME DESTINATION bin
+    )
+endif()

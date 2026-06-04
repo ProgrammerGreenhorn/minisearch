@@ -17,113 +17,118 @@ constexpr std::uint32_t IndexFormatVersion = 2;
 
 }  // namespace
 
-auto IndexStorage::save(const std::filesystem::path &path,
-                        const InvertedIndex &index,
-                        const std::filesystem::path &rootPath) const -> void {
-  proto::Index protoIndex;
-  protoIndex.set_version(IndexFormatVersion);
-  protoIndex.set_root_path(rootPath.string());
+auto IndexStorage::save(const std::filesystem::path &index_file,
+                        const InvertedIndex &search_index,
+                        const std::filesystem::path &root_path) const -> void {
+  proto::Index proto_index;
+  proto_index.set_version(IndexFormatVersion);
+  proto_index.set_root_path(root_path.string());
 
-  for (const auto &record : index.records()) {
+  for (const auto &file_record : search_index.records()) {
     // add_XXX returns a pointer to the newly added element, which we can fill
     // in directly
-    proto::FileRecord *protoRecord = protoIndex.add_records();
-    protoRecord->set_id(record.id);
-    protoRecord->set_path(record.path.string());
-    protoRecord->set_size(static_cast<std::uint64_t>(record.size));
-    protoRecord->set_modified_time(
-        static_cast<std::int64_t>(record.modifiedTime));
-    protoRecord->set_text_indexed(record.textIndexed);
-    protoRecord->set_content_hash(record.contentHash);
+    proto::FileRecord *proto_record = proto_index.add_records();
+    proto_record->set_id(file_record.id);
+    proto_record->set_path(file_record.path.string());
+    proto_record->set_size(static_cast<std::uint64_t>(file_record.size));
+    proto_record->set_modified_time(
+        static_cast<std::int64_t>(file_record.modifiedTime));
+    proto_record->set_text_indexed(file_record.textIndexed);
+    proto_record->set_content_hash(file_record.contentHash);
   }
 
-  for (const auto &[term, postings] : index.linePostings()) {
-    proto::PostingList *protoPosting = protoIndex.add_postings();
-    protoPosting->set_term(term);
+  for (const auto &[term_text, line_postings] : search_index.linePostings()) {
+    proto::PostingList *proto_posting_list = proto_index.add_postings();
+    proto_posting_list->set_term(term_text);
 
-    for (const auto &posting : postings) {
-      proto::Posting *protoTermPosting = protoPosting->add_postings();
-      protoTermPosting->set_document_id(posting.documentId);
-      for (const auto line : posting.lines) {
-        protoTermPosting->add_lines(line);
+    for (const auto &line_posting : line_postings) {
+      proto::Posting *proto_line_posting = proto_posting_list->add_postings();
+      proto_line_posting->set_document_id(line_posting.documentId);
+      for (const auto line_number : line_posting.lines) {
+        proto_line_posting->add_lines(line_number);
       }
     }
   }
 
-  const std::filesystem::path parent = path.parent_path();
-  if (!parent.empty()) {
-    std::error_code error;
-    std::filesystem::create_directories(parent, error);
-    if (error) {
+  const std::filesystem::path parent_directory = index_file.parent_path();
+  if (!parent_directory.empty()) {
+    std::error_code create_error;
+    std::filesystem::create_directories(parent_directory, create_error);
+    if (create_error) {
       throw std::runtime_error("failed to create index directory: " +
-                               parent.string());
+                               parent_directory.string());
     }
   }
 
-  std::ofstream output(path, std::ios::binary);
-  if (!output) {
+  std::ofstream output_stream(index_file, std::ios::binary);
+  if (!output_stream) {
     throw std::runtime_error("failed to open index file for writing: " +
-                             path.string());
+                             index_file.string());
   }
 
-  if (!protoIndex.SerializeToOstream(&output)) {
+  if (!proto_index.SerializeToOstream(&output_stream)) {
     throw std::runtime_error("failed to serialize index file: " +
-                             path.string());
+                             index_file.string());
   }
 }
 
-auto IndexStorage::load(const std::filesystem::path &path) const
+auto IndexStorage::load(const std::filesystem::path &index_file) const
     -> InvertedIndex {
-  std::ifstream input(path, std::ios::binary);
-  if (!input) {
-    throw std::runtime_error("failed to open index file: " + path.string());
+  std::ifstream input_stream(index_file, std::ios::binary);
+  if (!input_stream) {
+    throw std::runtime_error("failed to open index file: " +
+                             index_file.string());
   }
 
-  proto::Index protoIndex;
-  if (!protoIndex.ParseFromIstream(&input)) {
-    throw std::runtime_error("failed to parse index file: " + path.string());
+  proto::Index proto_index;
+  if (!proto_index.ParseFromIstream(&input_stream)) {
+    throw std::runtime_error("failed to parse index file: " +
+                             index_file.string());
   }
 
-  if (protoIndex.version() != IndexFormatVersion) {
-    throw std::runtime_error("unsupported index format: " + path.string());
+  if (proto_index.version() != IndexFormatVersion) {
+    throw std::runtime_error("unsupported index format: " +
+                             index_file.string());
   }
 
-  std::vector<FileRecord> records;
-  records.reserve(static_cast<std::size_t>(protoIndex.records_size()));
-  for (const auto &protoRecord : protoIndex.records()) {
-    FileRecord record;
-    record.id = protoRecord.id();
-    record.path = protoRecord.path();
-    record.size = static_cast<std::uintmax_t>(protoRecord.size());
-    record.modifiedTime = static_cast<std::time_t>(protoRecord.modified_time());
-    record.textIndexed = protoRecord.text_indexed();
-    record.contentHash = protoRecord.content_hash();
-    records.push_back(std::move(record));
+  std::vector<FileRecord> file_records;
+  file_records.reserve(static_cast<std::size_t>(proto_index.records_size()));
+  for (const auto &proto_record : proto_index.records()) {
+    FileRecord file_record;
+    file_record.id = proto_record.id();
+    file_record.path = proto_record.path();
+    file_record.size = static_cast<std::uintmax_t>(proto_record.size());
+    file_record.modifiedTime =
+        static_cast<std::time_t>(proto_record.modified_time());
+    file_record.textIndexed = proto_record.text_indexed();
+    file_record.contentHash = proto_record.content_hash();
+    file_records.push_back(std::move(file_record));
   }
 
-  std::unordered_map<std::string, InvertedIndex::LinePostingList> linePostings;
-  linePostings.reserve(static_cast<std::size_t>(protoIndex.postings_size()));
-  for (const auto &protoPosting : protoIndex.postings()) {
-    InvertedIndex::LinePostingList postings;
-    postings.reserve(static_cast<std::size_t>(protoPosting.postings_size()));
+  std::unordered_map<std::string, InvertedIndex::LinePostingList> line_postings;
+  line_postings.reserve(static_cast<std::size_t>(proto_index.postings_size()));
+  for (const auto &proto_posting_list : proto_index.postings()) {
+    InvertedIndex::LinePostingList posting_list;
+    posting_list.reserve(
+        static_cast<std::size_t>(proto_posting_list.postings_size()));
 
-    for (const auto &protoTermPosting : protoPosting.postings()) {
-      InvertedIndex::LinePosting posting;
-      posting.documentId = protoTermPosting.document_id();
-      posting.lines.reserve(
-          static_cast<std::size_t>(protoTermPosting.lines_size()));
-      for (const auto line : protoTermPosting.lines()) {
-        posting.lines.push_back(line);
+    for (const auto &proto_line_posting : proto_posting_list.postings()) {
+      InvertedIndex::LinePosting line_posting;
+      line_posting.documentId = proto_line_posting.document_id();
+      line_posting.lines.reserve(
+          static_cast<std::size_t>(proto_line_posting.lines_size()));
+      for (const auto line_number : proto_line_posting.lines()) {
+        line_posting.lines.push_back(line_number);
       }
-      postings.push_back(std::move(posting));
+      posting_list.push_back(std::move(line_posting));
     }
 
-    linePostings.emplace(protoPosting.term(), std::move(postings));
+    line_postings.emplace(proto_posting_list.term(), std::move(posting_list));
   }
 
-  InvertedIndex index;
-  index.replace(std::move(records), std::move(linePostings));
-  return index;
+  InvertedIndex loaded_index;
+  loaded_index.replace(std::move(file_records), std::move(line_postings));
+  return loaded_index;
 }
 
 }  // namespace minisearch::index

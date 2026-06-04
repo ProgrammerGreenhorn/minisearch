@@ -25,16 +25,16 @@ using minisearch::search::SearchEngine;
 class ScopedTempDir {
  public:
   explicit ScopedTempDir(const std::string& name) {
-    const auto suffix =
+    const auto unique_suffix =
         std::chrono::steady_clock::now().time_since_epoch().count();
     path_ = std::filesystem::temp_directory_path() /
-            (name + "_" + std::to_string(suffix));
+            (name + "_" + std::to_string(unique_suffix));
     std::filesystem::create_directories(path_);
   }
 
   ~ScopedTempDir() {
-    std::error_code ignored;
-    std::filesystem::remove_all(path_, ignored);
+    std::error_code ignored_error;
+    std::filesystem::remove_all(path_, ignored_error);
   }
 
   auto path() const -> const std::filesystem::path& { return path_; }
@@ -43,116 +43,121 @@ class ScopedTempDir {
   std::filesystem::path path_;
 };
 
-auto AddDocument(InvertedIndex& index, const std::string& path,
-                 const std::vector<ParsedTerm>& terms)
+auto AddDocument(InvertedIndex& inverted_index, const std::string& file_path,
+                 const std::vector<ParsedTerm>& parsed_terms)
     -> InvertedIndex::DocumentId {
-  const auto id = index.addRecord(
-      FileRecord(std::filesystem::path(path), 123, 456, true, 789));
-  index.addTermOccurrences(id, terms);
-  return id;
+  const auto document_id = inverted_index.addRecord(
+      FileRecord(std::filesystem::path(file_path), 123, 456, true, 789));
+  inverted_index.addTermOccurrences(document_id, parsed_terms);
+  return document_id;
 }
 
-auto AddIndexedFile(InvertedIndex& index, const std::filesystem::path& path,
+auto AddIndexedFile(InvertedIndex& inverted_index,
+                    const std::filesystem::path& file_path,
                     const std::string& contents) -> InvertedIndex::DocumentId {
-  std::ofstream output(path);
-  EXPECT_TRUE(output);
-  output << contents;
-  output.close();
+  std::ofstream output_stream(file_path);
+  EXPECT_TRUE(output_stream);
+  output_stream << contents;
+  output_stream.close();
 
-  const auto id =
-      index.addRecord(FileRecord(path, contents.size(), 456, true, 789));
-  TextParser parser;
-  index.addTermOccurrences(id, parser.parseFile(path));
-  return id;
+  const auto document_id = inverted_index.addRecord(
+      FileRecord(file_path, contents.size(), 456, true, 789));
+  TextParser text_parser;
+  inverted_index.addTermOccurrences(document_id,
+                                    text_parser.parseFile(file_path));
+  return document_id;
 }
 
 TEST(SearchEngineTest, FindByNameDelegatesToIndex) {
-  InvertedIndex index;
-  AddDocument(index, "src/main.cpp", {ParsedTerm{"alpha", 1}});
-  AddDocument(index, "README.md", {ParsedTerm{"beta", 1}});
+  InvertedIndex inverted_index;
+  AddDocument(inverted_index, "src/main.cpp", {ParsedTerm{"alpha", 1}});
+  AddDocument(inverted_index, "README.md", {ParsedTerm{"beta", 1}});
 
-  SearchEngine search(index);
-  const auto matches = search.findByName("readme", 10);
+  SearchEngine search_engine(inverted_index);
+  const auto name_matches = search_engine.findByName("readme", 10);
 
-  ASSERT_EQ(matches.size(), 1U);
-  EXPECT_EQ(matches[0].path, std::filesystem::path("README.md"));
+  ASSERT_EQ(name_matches.size(), 1U);
+  EXPECT_EQ(name_matches[0].path, std::filesystem::path("README.md"));
 }
 
 TEST(SearchEngineTest, GrepTokenizesQueryBeforeSearchingTerms) {
-  InvertedIndex index;
-  AddDocument(index, "first.txt",
+  InvertedIndex inverted_index;
+  AddDocument(inverted_index, "first.txt",
               {ParsedTerm{"alpha", 1}, ParsedTerm{"beta", 1}});
-  AddDocument(index, "second.txt", {ParsedTerm{"alpha", 2}});
+  AddDocument(inverted_index, "second.txt", {ParsedTerm{"alpha", 2}});
   AddDocument(
-      index, "third.txt",
+      inverted_index, "third.txt",
       {ParsedTerm{"alpha", 4}, ParsedTerm{"beta", 4}, ParsedTerm{"gamma", 5}});
 
-  SearchEngine search(index);
-  const auto matches = search.grep("ALPHA, beta!", 10);
+  SearchEngine search_engine(inverted_index);
+  const auto grep_matches = search_engine.grep("ALPHA, beta!", 10);
 
-  ASSERT_EQ(matches.size(), 2U);
-  EXPECT_EQ(matches[0].record.path, std::filesystem::path("first.txt"));
-  EXPECT_EQ(matches[0].lines, std::vector<std::uint32_t>({1}));
-  EXPECT_EQ(matches[1].record.path, std::filesystem::path("third.txt"));
-  EXPECT_EQ(matches[1].lines, std::vector<std::uint32_t>({4}));
+  ASSERT_EQ(grep_matches.size(), 2U);
+  EXPECT_EQ(grep_matches[0].record.path, std::filesystem::path("first.txt"));
+  EXPECT_EQ(grep_matches[0].lines, std::vector<std::uint32_t>({1}));
+  EXPECT_EQ(grep_matches[1].record.path, std::filesystem::path("third.txt"));
+  EXPECT_EQ(grep_matches[1].lines, std::vector<std::uint32_t>({4}));
 }
 
 TEST(SearchEngineTest, GrepLinesReadsMatchingLinesAndHighlightsTerms) {
-  ScopedTempDir temp("minisearch_search_engine");
-  InvertedIndex index;
-  AddIndexedFile(index, temp.path() / "notes.txt",
+  ScopedTempDir temp_dir("minisearch_search_engine");
+  InvertedIndex inverted_index;
+  AddIndexedFile(inverted_index, temp_dir.path() / "notes.txt",
                  "Alpha beta\nalpha only\nGamma BETA alpha\n");
 
-  SearchEngine search(index);
-  const auto lines = search.grepLines("ALPHA, beta!", 10);
+  SearchEngine search_engine(inverted_index);
+  const auto grep_lines = search_engine.grepLines("ALPHA, beta!", 10);
 
-  ASSERT_EQ(lines.size(), 2U);
-  EXPECT_EQ(lines[0].line, 1U);
-  EXPECT_EQ(lines[0].text, "Alpha beta");
-  EXPECT_EQ(lines[0].highlightedText,
+  ASSERT_EQ(grep_lines.size(), 2U);
+  EXPECT_EQ(grep_lines[0].line, 1U);
+  EXPECT_EQ(grep_lines[0].text, "Alpha beta");
+  EXPECT_EQ(grep_lines[0].highlightedText,
             "\x1b[1;33mAlpha\x1b[0m \x1b[1;33mbeta\x1b[0m");
-  EXPECT_EQ(lines[1].line, 3U);
-  EXPECT_EQ(lines[1].text, "Gamma BETA alpha");
-  EXPECT_EQ(lines[1].highlightedText,
+  EXPECT_EQ(grep_lines[1].line, 3U);
+  EXPECT_EQ(grep_lines[1].text, "Gamma BETA alpha");
+  EXPECT_EQ(grep_lines[1].highlightedText,
             "Gamma \x1b[1;33mBETA\x1b[0m \x1b[1;33malpha\x1b[0m");
 }
 
 TEST(SearchEngineTest, GrepLinesDefaultDoesNotStopAtFiftyLines) {
-  ScopedTempDir temp("minisearch_search_engine_limit");
-  InvertedIndex index;
+  ScopedTempDir temp_dir("minisearch_search_engine_limit");
+  InvertedIndex inverted_index;
 
-  std::ostringstream contents;
-  for (std::size_t line = 0; line < 60; ++line) {
-    contents << "Alpha line " << line << '\n';
+  std::ostringstream file_contents;
+  for (std::size_t line_number = 0; line_number < 60; ++line_number) {
+    file_contents << "Alpha line " << line_number << '\n';
   }
-  AddIndexedFile(index, temp.path() / "many.txt", contents.str());
+  AddIndexedFile(inverted_index, temp_dir.path() / "many.txt",
+                 file_contents.str());
 
-  SearchEngine search(index);
-  const auto lines = search.grepLines("alpha");
+  SearchEngine search_engine(inverted_index);
+  const auto grep_lines = search_engine.grepLines("alpha");
 
-  EXPECT_EQ(lines.size(), 60U);
+  EXPECT_EQ(grep_lines.size(), 60U);
 }
 
 TEST(SearchEngineTest, HighlightTermsOnlyHighlightsWholeTokens) {
-  const auto highlighted =
+  const auto highlighted_text =
       SearchEngine::highlightTerms("Alphabet alpha alpha_beta", {"alpha"});
 
-  EXPECT_EQ(highlighted, "Alphabet \x1b[1;33malpha\x1b[0m alpha_beta");
+  EXPECT_EQ(highlighted_text, "Alphabet \x1b[1;33malpha\x1b[0m alpha_beta");
 }
 
 TEST(SearchEngineTest, FormatGrepLineIncludesPathLineAndHighlightedText) {
-  const FileRecord record(std::filesystem::path("README.md"), 42, 0, true, 1);
-  const SearchEngine::GrepLine line{record, 7, "Alpha",
-                                    "\x1b[1;33mAlpha\x1b[0m"};
+  const FileRecord file_record(std::filesystem::path("README.md"), 42, 0, true,
+                               1);
+  const SearchEngine::GrepLine grep_line{file_record, 7, "Alpha",
+                                         "\x1b[1;33mAlpha\x1b[0m"};
 
-  EXPECT_EQ(SearchEngine::formatGrepLine(line),
+  EXPECT_EQ(SearchEngine::formatGrepLine(grep_line),
             "README.md:7:\n  \x1b[1;33mAlpha\x1b[0m");
 }
 
 TEST(SearchEngineTest, FormatRecordIncludesPathAndSize) {
-  const FileRecord record(std::filesystem::path("README.md"), 42, 0, true, 1);
+  const FileRecord file_record(std::filesystem::path("README.md"), 42, 0, true,
+                               1);
 
-  EXPECT_EQ(SearchEngine::formatRecord(record), "README.md (42 bytes)");
+  EXPECT_EQ(SearchEngine::formatRecord(file_record), "README.md (42 bytes)");
 }
 
 }  // namespace

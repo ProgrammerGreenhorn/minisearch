@@ -4,12 +4,15 @@ A C++17 local file indexing and search tool.
 
 ## Build
 
-Install Protobuf first:
+Install Protobuf first. Install wxWidgets too when building the GUI:
 
 ```bash
 sudo apt update
-sudo apt install -y protobuf-compiler libprotobuf-dev
+sudo apt install -y protobuf-compiler libprotobuf-dev libwxgtk3.2-dev
 ```
+
+The GUI is built by default. To build only the CLI, configure with
+`-DMINISEARCH_BUILD_GUI=OFF`.
 
 Then build:
 
@@ -22,6 +25,7 @@ The debug binary is written to:
 
 ```bash
 build/debug/minisearch
+build/debug/minisearch-gui
 ```
 
 For an optimized build:
@@ -85,6 +89,16 @@ Use shell commands for searching and stats:
 (minisearch) path
 ```
 
+Run the native wxWidgets GUI:
+
+```bash
+./build/debug/minisearch-gui
+```
+
+The GUI can load the current index, build or refresh an index for a selected
+file or directory, search file names, grep indexed text content, and open result
+files with the desktop default application.
+
 Visualize stored Protobuf index files as a local HTML report:
 
 ```bash
@@ -109,6 +123,7 @@ their persisted postings and only new or modified text files are parsed again.
 ## Modules
 
 - `cli`: command-line parsing
+- `gui`: wxWidgets desktop application
 - `index`: file scanning, text tokenization, inverted index, index storage
 - `search`: search API used by CLI commands
 - `util`: logger and thread pool

@@ -3,12 +3,12 @@
 #include "minisearch/app/Application.hpp"
 #include "minisearch/util/Logger.hpp"
 
-auto main(int argc, char** argv) -> int {
+auto main(int argument_count, char** argument_values) -> int {
   try {
-    const minisearch::app::Application app;
-    return app.run(argc, argv);
-  } catch (const std::exception& error) {
-    MINISEARCH_LOG_ERROR(error.what());
+    const minisearch::app::Application application;
+    return application.run(argument_count, argument_values);
+  } catch (const std::exception& exception) {
+    MINISEARCH_LOG_ERROR(exception.what());
     return 1;
   }
 }
