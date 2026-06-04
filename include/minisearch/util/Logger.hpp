@@ -1,10 +1,14 @@
 #pragma once
 
+#include <condition_variable>
+#include <cstddef>
+#include <deque>
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 
 namespace minisearch::util {
 
@@ -28,7 +32,7 @@ class Logger {
   static auto instance() -> Logger&;
 
   /**
-   * @brief Destroy the logger and close any configured file output.
+   * @brief Stop the worker thread after flushing queued log messages.
    */
   ~Logger();
 
@@ -55,7 +59,12 @@ class Logger {
   auto clearLogFile() -> void;
 
   /**
-   * @brief Write a log message at the requested level.
+   * @brief Wait until all queued log messages have been written.
+   */
+  auto flush() -> void;
+
+  /**
+   * @brief Queue a log message at the requested level.
    *
    * @param log_level Severity level for the message.
    * @param message Message text to write.
@@ -63,46 +72,74 @@ class Logger {
   auto log(LogLevel log_level, const std::string& message) -> void;
 
   /**
-   * @brief Write a debug log message.
+   * @brief Queue a debug log message.
    *
    * @param message Message text to write.
    */
   auto debug(const std::string& message) -> void;
 
   /**
-   * @brief Write an info log message.
+   * @brief Queue an info log message.
    *
    * @param message Message text to write.
    */
   auto info(const std::string& message) -> void;
 
   /**
-   * @brief Write a warning log message.
+   * @brief Queue a warning log message.
    *
    * @param message Message text to write.
    */
   auto warning(const std::string& message) -> void;
 
   /**
-   * @brief Write an error log message.
+   * @brief Queue an error log message.
    *
    * @param message Message text to write.
    */
   auto error(const std::string& message) -> void;
 
  private:
-  Logger() = default;
+  struct LogEntry {
+    LogLevel log_level = LogLevel::Info;
+    std::string line_text;
+  };
 
   /**
-   * @brief Write a formatted log message to all configured outputs.
+   * @brief Start the background logger worker.
+   */
+  Logger();
+
+  /**
+   * @brief Add a formatted log entry to the worker queue.
    *
    * @param log_level Severity level for the message.
    * @param message Message text to write.
    */
-  auto write(LogLevel log_level, const std::string& message) -> void;
+  auto enqueue(LogLevel log_level, const std::string& message) -> void;
 
-  std::mutex mutex_;
+  /**
+   * @brief Run the background worker loop.
+   */
+  auto workerLoop() -> void;
+
+  /**
+   * @brief Write a batch of formatted entries to configured outputs.
+   *
+   * @param log_entries Formatted log entries to write.
+   */
+  auto writeEntries(const std::deque<LogEntry>& log_entries) -> void;
+
+  std::mutex queueMutex_;
+  std::condition_variable queueCondition_;
+  std::condition_variable flushCondition_;
+  std::deque<LogEntry> logQueue_;
+  std::size_t pendingEntries_ = 0;
+  bool stopRequested_ = false;
+
+  std::mutex outputMutex_;
   std::unique_ptr<std::ofstream> fileStream_;
+  std::thread workerThread_;
 };
 
 }  // namespace minisearch::util

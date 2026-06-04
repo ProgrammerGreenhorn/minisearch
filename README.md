@@ -180,8 +180,10 @@ python3 scripts/visualize_index_pb.py ~/.minisearch/indexes/<hash>.pb -o /tmp/in
 
 ## Logging
 
-MiniSearch logs to the console by default. Set `MINISEARCH_LOG_FILE` to append
-the same log events to a plain-text file without terminal color escape codes:
+MiniSearch queues log messages in memory and writes them from a background
+worker thread in batches. It logs to the console by default. Set
+`MINISEARCH_LOG_FILE` to append the same log events to a plain-text file
+without terminal color escape codes:
 
 ```bash
 MINISEARCH_LOG_FILE=/tmp/minisearch.log ./build/debug/minisearch ./src
@@ -189,7 +191,9 @@ MINISEARCH_LOG_FILE=/tmp/minisearch-gui.log ./build/debug/minisearch-gui
 ```
 
 The logger is process-wide and can also be configured in code through
-`minisearch::util::Logger::instance().setLogFile(...)`.
+`minisearch::util::Logger::instance().setLogFile(...)`. Call
+`minisearch::util::Logger::instance().flush()` when tests or tools need to wait
+for queued log messages to reach disk.
 
 ## Tests
 

@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 namespace minisearch::util {
 
@@ -90,7 +91,23 @@ auto Logger::instance() -> Logger& {
   return logger;
 }
 
-Logger::~Logger() = default;
+Logger::Logger() : workerThread_(&Logger::workerLoop, this) {}
+
+Logger::~Logger() {
+  flush();
+  {
+    std::lock_guard<std::mutex> lock(queueMutex_);
+    stopRequested_ = true;
+  }
+  queueCondition_.notify_one();
+
+  if (workerThread_.joinable()) {
+    workerThread_.join();
+  }
+
+  std::lock_guard<std::mutex> output_lock(outputMutex_);
+  fileStream_.reset();
+}
 
 auto Logger::configureFromEnvironment() -> void {
   const char* log_file_value = std::getenv(LogFileEnvironmentVariable.data());
@@ -103,6 +120,8 @@ auto Logger::configureFromEnvironment() -> void {
 }
 
 auto Logger::setLogFile(const std::filesystem::path& log_file) -> void {
+  flush();
+
   const std::filesystem::path parent_directory = log_file.parent_path();
   if (!parent_directory.empty()) {
     std::error_code create_error;
@@ -119,51 +138,122 @@ auto Logger::setLogFile(const std::filesystem::path& log_file) -> void {
     throw std::runtime_error("failed to open log file: " + log_file.string());
   }
 
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> output_lock(outputMutex_);
   fileStream_ = std::move(next_file_stream);
 }
 
 auto Logger::clearLogFile() -> void {
-  std::lock_guard<std::mutex> lock(mutex_);
+  flush();
+
+  std::lock_guard<std::mutex> output_lock(outputMutex_);
   fileStream_.reset();
 }
 
-auto Logger::write(LogLevel log_level, const std::string& message) -> void {
-  const std::string line_text = formattedLine(log_level, message);
+auto Logger::flush() -> void {
+  {
+    std::unique_lock<std::mutex> queue_lock(queueMutex_);
+    flushCondition_.wait(queue_lock, [this]() { return pendingEntries_ == 0; });
+  }
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  std::ostream& console_stream =
-      log_level == LogLevel::Error ? std::cerr : std::cout;
-  console_stream << color(log_level) << line_text << "\033[0m\n";
-
+  std::lock_guard<std::mutex> output_lock(outputMutex_);
+  std::cout.flush();
+  std::cerr.flush();
   if (fileStream_ != nullptr) {
-    *fileStream_ << line_text << '\n';
     fileStream_->flush();
   }
 }
 
+auto Logger::enqueue(LogLevel log_level, const std::string& message) -> void {
+  LogEntry log_entry{log_level, formattedLine(log_level, message)};
+  {
+    std::lock_guard<std::mutex> queue_lock(queueMutex_);
+    if (stopRequested_) {
+      return;
+    }
+
+    logQueue_.push_back(std::move(log_entry));
+    ++pendingEntries_;
+  }
+
+  queueCondition_.notify_one();
+}
+
+auto Logger::workerLoop() -> void {
+  while (true) {
+    std::deque<LogEntry> log_entries;
+    {
+      std::unique_lock<std::mutex> queue_lock(queueMutex_);
+      queueCondition_.wait(queue_lock, [this]() {
+        return stopRequested_ || !logQueue_.empty();
+      });
+
+      if (logQueue_.empty()) {
+        if (stopRequested_) {
+          return;
+        }
+        continue;
+      }
+
+      log_entries.swap(logQueue_);
+    }
+
+    writeEntries(log_entries);
+
+    {
+      std::lock_guard<std::mutex> queue_lock(queueMutex_);
+      pendingEntries_ -= log_entries.size();
+      if (pendingEntries_ == 0) {
+        flushCondition_.notify_all();
+      }
+    }
+  }
+}
+
+auto Logger::writeEntries(const std::deque<LogEntry>& log_entries) -> void {
+  if (log_entries.empty()) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> output_lock(outputMutex_);
+  std::ostringstream file_output_buffer;
+  for (const auto& log_entry : log_entries) {
+    std::ostream& console_stream =
+        log_entry.log_level == LogLevel::Error ? std::cerr : std::cout;
+    console_stream << color(log_entry.log_level) << log_entry.line_text
+                   << "\033[0m\n";
+
+    if (fileStream_ != nullptr) {
+      file_output_buffer << log_entry.line_text << '\n';
+    }
+  }
+
+  if (fileStream_ != nullptr) {
+    *fileStream_ << file_output_buffer.str();
+  }
+}
+
 auto Logger::log(LogLevel log_level, const std::string& message) -> void {
-  write(log_level, message);
+  enqueue(log_level, message);
 }
 
 auto Logger::debug(const std::string& message) -> void {
 #ifdef MINISEARCH_ENABLE_DEBUG_LOG
-  write(LogLevel::Debug, message);
+  enqueue(LogLevel::Debug, message);
 #else
   (void)message;
 #endif
 }
 
 auto Logger::info(const std::string& message) -> void {
-  write(LogLevel::Info, message);
+  enqueue(LogLevel::Info, message);
 }
 
 auto Logger::warning(const std::string& message) -> void {
-  write(LogLevel::Warning, message);
+  enqueue(LogLevel::Warning, message);
 }
 
 auto Logger::error(const std::string& message) -> void {
-  write(LogLevel::Error, message);
+  enqueue(LogLevel::Error, message);
 }
 
 }  // namespace minisearch::util
