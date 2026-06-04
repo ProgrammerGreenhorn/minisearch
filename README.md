@@ -1,62 +1,130 @@
 # MiniSearch
 
-A C++17 local file indexing and search tool.
+MiniSearch is a C++17 local file indexing and search tool. It builds a
+Protobuf-backed inverted index for files on disk, then exposes that index
+through both a CLI interactive shell and a native wxWidgets desktop GUI.
 
-## Build
+## Features
 
-Install Protobuf first. Install wxWidgets too when building the GUI:
+- Index a file or directory into a persistent local Protobuf index.
+- Reopen the most recently built index without passing a path again.
+- Reuse unchanged text-file postings during refreshes.
+- Search indexed file names and paths.
+- Search indexed text content by tokenized terms and line numbers.
+- Browse results through either the interactive shell or the GUI.
+- Visualize stored `.pb` index files as a local HTML report.
+
+## Requirements
+
+Install Protobuf before building. Install wxWidgets too when building the GUI:
 
 ```bash
 sudo apt update
 sudo apt install -y protobuf-compiler libprotobuf-dev libwxgtk3.2-dev
 ```
 
-The GUI is built by default. To build only the CLI, configure with
-`-DMINISEARCH_BUILD_GUI=OFF`.
+The GUI is enabled by default. Configure with
+`-DMINISEARCH_BUILD_GUI=OFF` if only the CLI target is needed.
 
-Then build:
+Tests are enabled by default and use GoogleTest through CMake
+`FetchContent`, so the first test-enabled configure may need network access.
+
+## Build
+
+Use the helper script for the normal workflows:
+
+```bash
+./build.sh debug
+./build.sh release
+./build.sh all
+```
+
+`./build.sh` defaults to `debug` when no mode is passed. It configures the
+matching CMake preset and then builds it.
+
+The equivalent direct CMake commands are:
 
 ```bash
 cmake --preset debug
 cmake --build --preset debug
-```
 
-The debug binary is written to:
-
-```bash
-build/debug/minisearch
-build/debug/minisearch-gui
-```
-
-For an optimized build:
-
-```bash
 cmake --preset release
 cmake --build --preset release
 ```
 
-Install the selected build to `~/.local/bin`:
+Build outputs:
+
+```text
+build/debug/minisearch
+build/debug/minisearch-gui
+build/release/minisearch
+build/release/minisearch-gui
+```
+
+Install a configured build to `~/.local/bin`:
 
 ```bash
 cmake --install build/debug
 ```
 
-## Usage
+## CLI Usage
+
+Index a path and open the interactive shell:
 
 ```bash
 ./build/debug/minisearch ./src
 ```
 
-After indexing, MiniSearch enters an interactive shell:
+Open the most recently built index:
+
+```bash
+./build/debug/minisearch
+```
+
+Interactive shell commands:
 
 ```text
 (minisearch) find main
-(minisearch) grep "class parser"
+(minisearch) grep ThreadPool
+(minisearch) show
 (minisearch) stats
+(minisearch) path
+(minisearch) help
 (minisearch) quit
 ```
 
-By default, index files are stored under `~/.minisearch`:
+Command summary:
+
+| Command | Description |
+| --- | --- |
+| `find <query>` | Search indexed file names and paths. |
+| `grep <query>` | Search indexed text content and print matching lines. |
+| `show` | Show all indexed files. |
+| `stats` | Show file, text-file, and term counts. |
+| `path` | Show the indexed root and index file path. |
+| `help` | Show shell help. |
+| `quit` | Exit the shell. |
+
+## GUI Usage
+
+Run the native wxWidgets GUI:
+
+```bash
+./build/debug/minisearch-gui
+```
+
+The GUI can:
+
+- Load the current index on startup.
+- Choose a file or directory and build an index for it.
+- Reindex the currently loaded root.
+- Search file names or indexed text content.
+- Show matching line context in the result table and preview pane.
+- Open result files with the desktop default application.
+
+## Index Storage
+
+Index metadata is stored under `~/.minisearch`:
 
 ```text
 ~/.minisearch/
@@ -65,39 +133,19 @@ By default, index files are stored under `~/.minisearch`:
     <canonical-path-hash>.pb
 ```
 
-MiniSearch first converts the indexed path to a normalized absolute path, then
-hashes that path to choose the real Protobuf index file. For example, indexing
-`./src` stores an index for the canonical `src` path under
-`~/.minisearch/indexes/<hash>.pb`.
+MiniSearch normalizes the indexed path to an absolute canonical path, hashes
+that path, and stores the real index at
+`~/.minisearch/indexes/<canonical-path-hash>.pb`.
 
-After a successful indexing run, MiniSearch writes
-`~/.minisearch/current.pb`. That Protobuf file points to the most recently
-built index, so running MiniSearch without arguments reopens that index in the
-interactive shell:
+After a successful indexing run, `~/.minisearch/current.pb` points to the most
+recent index. That is why running `minisearch` without arguments reopens the
+last indexed root.
 
-```bash
-./build/debug/minisearch ./src
-./build/debug/minisearch
-```
+When refreshing an existing index, unchanged text files reuse their stored
+postings. New or modified text files are parsed again, while removed files are
+left out of the rebuilt index.
 
-Use shell commands for searching and stats:
-
-```text
-(minisearch) grep ThreadPool
-(minisearch) show
-(minisearch) stats
-(minisearch) path
-```
-
-Run the native wxWidgets GUI:
-
-```bash
-./build/debug/minisearch-gui
-```
-
-The GUI can load the current index, build or refresh an index for a selected
-file or directory, search file names, grep indexed text content, and open result
-files with the desktop default application.
+## Index Visualization
 
 Visualize stored Protobuf index files as a local HTML report:
 
@@ -105,32 +153,57 @@ Visualize stored Protobuf index files as a local HTML report:
 python3 scripts/visualize_index_pb.py
 ```
 
-By default, the script reads `~/.minisearch/indexes/*.pb`, uses
-`proto/index.proto` for decoding, and writes
-`build/index-pb-visualization.html`. The report includes aggregate stats plus
-expandable field views for the persisted `Index`, `FileRecord`, `PostingList`,
-and `Posting` objects. Pass a file or directory to inspect a different
-location:
+By default, the script reads `~/.minisearch/indexes/*.pb`, decodes data with
+`proto/index.proto`, and writes:
+
+```text
+build/index-pb-visualization.html
+```
+
+Inspect a specific index file or directory:
 
 ```bash
 python3 scripts/visualize_index_pb.py ~/.minisearch/indexes/<hash>.pb -o /tmp/index.html
 ```
 
-Run `minisearch <path>` again to refresh the index or switch to a different
-indexed path. When an existing index is available, unchanged text files reuse
-their persisted postings and only new or modified text files are parsed again.
+## Tests
 
-## Modules
+Build and run the GoogleTest suite:
 
-- `cli`: command-line parsing
-- `gui`: wxWidgets desktop application
-- `index`: file scanning, text tokenization, inverted index, index storage
-- `search`: search API used by CLI commands
-- `util`: logger and thread pool
+```bash
+cmake --build --preset debug --target check-tests
+```
 
-## Possible next steps
+Build test binaries without running them:
 
-- Fuzzy matching and ranking
-- Highlighted search output
-- Config file support
-- Compact binary index format
+```bash
+cmake --build --preset debug --target build-tests
+```
+
+## Project Layout
+
+```text
+include/minisearch/   Public headers
+src/                  Implementations and entry points
+proto/index.proto     Persistent index schema
+scripts/              Development and inspection scripts
+test/                 GoogleTest unit tests
+build/                Generated build output
+```
+
+Main modules:
+
+- `app`: application startup flow.
+- `cli`: command-line parsing.
+- `gui`: wxWidgets desktop application.
+- `index`: file scanning, text tokenization, inverted index, and storage.
+- `search`: query API used by CLI and GUI.
+- `shell`: interactive shell commands.
+- `util`: logger, hashing, and thread pool helpers.
+
+## Roadmap
+
+- Ranking and fuzzy matching.
+- File-type and path filters.
+- Config file support.
+- Index schema versioning and migration helpers.

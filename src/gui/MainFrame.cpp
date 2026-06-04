@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <exception>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -36,6 +38,8 @@ constexpr int MinimumWindowWidth = 900;
 constexpr int MinimumWindowHeight = 560;
 constexpr int ListChromeWidth = 28;
 constexpr int LineColumnWidth = 84;
+constexpr std::uint32_t ContextRadius = 2;
+constexpr std::size_t DetailsLimit = 260;
 
 auto pageBackgroundColor() -> wxColour { return wxColour(245, 247, 251); }
 
@@ -93,6 +97,102 @@ auto toWxString(const std::filesystem::path& file_path) -> wxString {
 
 auto sizeText(std::uintmax_t file_size) -> std::string {
   return std::to_string(file_size) + " bytes";
+}
+
+auto durationText(std::chrono::steady_clock::duration elapsed_time)
+    -> std::string {
+  const auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+  return std::to_string(elapsed_ms.count()) + " ms";
+}
+
+auto compactWhitespace(std::string_view input_text) -> std::string {
+  std::string compact_text;
+  compact_text.reserve(input_text.size());
+  bool previous_was_space = false;
+
+  for (const unsigned char character : input_text) {
+    if (std::isspace(character) != 0) {
+      if (!previous_was_space) {
+        compact_text.push_back(' ');
+        previous_was_space = true;
+      }
+      continue;
+    }
+
+    compact_text.push_back(static_cast<char>(character));
+    previous_was_space = false;
+  }
+
+  return trim(compact_text);
+}
+
+auto truncateText(const std::string& input_text,
+                  std::size_t limit) -> std::string {
+  if (input_text.size() <= limit) {
+    return input_text;
+  }
+
+  if (limit <= 3) {
+    return input_text.substr(0, limit);
+  }
+
+  return input_text.substr(0, limit - 3) + "...";
+}
+
+auto lineContextText(const std::filesystem::path& file_path,
+                     std::uint32_t center_line, std::uint32_t radius,
+                     bool multiline) -> std::string {
+  if (center_line == 0) {
+    return {};
+  }
+
+  std::ifstream input_stream(file_path);
+  if (!input_stream) {
+    return "Could not load file context";
+  }
+
+  const std::uint32_t first_line =
+      center_line > radius ? center_line - radius : 1;
+  const std::uint32_t last_line = center_line + radius;
+  std::ostringstream context_stream;
+  std::string line_text;
+  std::uint32_t line_number = 1;
+
+  while (std::getline(input_stream, line_text) && line_number <= last_line) {
+    if (line_number >= first_line) {
+      if (multiline) {
+        context_stream << (line_number == center_line ? "> " : "  ")
+                       << line_number << ": " << line_text << '\n';
+      } else {
+        if (context_stream.tellp() > 0) {
+          context_stream << " | ";
+        }
+        context_stream << (line_number == center_line ? "> " : "")
+                       << line_number << ": " << compactWhitespace(line_text);
+      }
+    }
+    ++line_number;
+  }
+
+  std::string context_text = context_stream.str();
+  if (context_text.empty()) {
+    return "No context available";
+  }
+
+  if (multiline && context_text.back() == '\n') {
+    context_text.pop_back();
+  }
+  return context_text;
+}
+
+auto filePreviewText(const index::FileRecord& file_record) -> std::string {
+  std::ostringstream preview_stream;
+  preview_stream << file_record.path.string() << '\n'
+                 << "Size: " << sizeText(file_record.size) << '\n'
+                 << "Text indexed: "
+                 << (file_record.textIndexed ? "yes" : "no");
+  return preview_stream.str();
 }
 
 auto indexSummary(const index::InvertedIndex& search_index) -> std::string {
@@ -176,7 +276,12 @@ MainFrame::MainFrame()
   indexButton_ = new wxButton(main_panel, wxID_ANY, "Index");
   indexButton_->SetMinSize(wxSize(78, -1));
   styleButton(indexButton_, accentColor(), wxColour(240, 253, 250));
-  path_sizer->Add(indexButton_, 0);
+  path_sizer->Add(indexButton_, 0, wxRIGHT, 6);
+
+  reindexButton_ = new wxButton(main_panel, wxID_ANY, "Reindex");
+  reindexButton_->SetMinSize(wxSize(92, -1));
+  styleButton(reindexButton_, primaryColor(), wxColour(239, 246, 255));
+  path_sizer->Add(reindexButton_, 0);
   root_sizer->Add(path_sizer, 0, wxEXPAND | wxALL, 12);
 
   auto* search_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -209,10 +314,20 @@ MainFrame::MainFrame()
   resultsList_->InsertColumn(2, "Details", wxLIST_FORMAT_LEFT, 460);
   root_sizer->Add(resultsList_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
+  auto* preview_label = new wxStaticText(main_panel, wxID_ANY, "Preview");
+  styleLabel(preview_label);
+  root_sizer->Add(preview_label, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
+
+  previewCtrl_ =
+      new wxTextCtrl(main_panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxSize(-1, 150), wxTE_MULTILINE | wxTE_READONLY);
+  styleTextControl(previewCtrl_);
+  root_sizer->Add(previewCtrl_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+
   main_panel->SetSizer(root_sizer);
-  CreateStatusBar(2);
-  const int status_widths[] = {-3, -2};
-  SetStatusWidths(2, status_widths);
+  CreateStatusBar(3);
+  const int status_widths[] = {-2, -3, -2};
+  SetStatusWidths(3, status_widths);
   styleStatusBar(GetStatusBar());
 
   browseDirectoryButton_->Bind(
@@ -220,8 +335,12 @@ MainFrame::MainFrame()
   browseFileButton_->Bind(wxEVT_BUTTON,
                           [this](wxCommandEvent&) { onBrowseFile(); });
   indexButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onIndex(); });
+  reindexButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onReindex(); });
   searchButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onSearch(); });
   queryCtrl_->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent&) { onSearch(); });
+  resultsList_->Bind(wxEVT_LIST_ITEM_SELECTED, [this](wxListEvent& list_event) {
+    onResultSelected(list_event.GetIndex());
+  });
   resultsList_->Bind(wxEVT_LIST_ITEM_ACTIVATED,
                      [this](wxListEvent& list_event) {
                        onResultActivated(list_event.GetIndex());
@@ -255,8 +374,8 @@ auto MainFrame::loadCurrentIndex() -> void {
     hasIndex_ = false;
     rootPath_.clear();
     indexFile_.clear();
-    SetStatusText("No current index loaded", 0);
-    SetStatusText(toWxString(std::string(exception.what())), 1);
+    updateStatusBar("No current index loaded");
+    SetStatusText(toWxString(std::string(exception.what())), 2);
   }
 }
 
@@ -271,6 +390,7 @@ auto MainFrame::indexPath() -> void {
   try {
     wxBusyCursor busy_cursor;
     indexButton_->Disable();
+    reindexButton_->Disable();
     searchButton_->Disable();
 
     const std::filesystem::path target_path(target_path_text);
@@ -289,9 +409,9 @@ auto MainFrame::indexPath() -> void {
     status_stream << "Indexed " << rootPath_ << "  Reused "
                   << build_result.reusedTextFiles << "  Parsed "
                   << build_result.parsedTextFiles;
-    SetStatusText(toWxString(status_stream.str()), 0);
     updateIndexState();
     runSearch();
+    updateStatusBar(status_stream.str());
   } catch (const std::exception& exception) {
     showError("Index failed", exception.what());
     updateIndexState();
@@ -301,6 +421,7 @@ auto MainFrame::indexPath() -> void {
 auto MainFrame::runSearch() -> void {
   clearResults();
   const std::string query_text = trim(fromWxString(queryCtrl_->GetValue()));
+  const auto search_start_time = std::chrono::steady_clock::now();
   if (!hasIndex_) {
     showNoIndexState();
     return;
@@ -323,10 +444,16 @@ auto MainFrame::runSearch() -> void {
       styleResultRow(resultsList_, row_index);
       resultsList_->SetItem(row_index, 1,
                             toWxString(std::to_string(grep_line.line)));
-      resultsList_->SetItem(row_index, 2, toWxString(grep_line.text));
+      const std::string context_text = lineContextText(
+          grep_line.record.path, grep_line.line, ContextRadius, false);
+      const std::string preview_text = lineContextText(
+          grep_line.record.path, grep_line.line, ContextRadius, true);
+      resultsList_->SetItem(
+          row_index, 2, toWxString(truncateText(context_text, DetailsLimit)));
       resultsList_->SetItemData(row_index,
                                 static_cast<long>(resultEntries_.size()));
-      resultEntries_.push_back({grep_line.record.path, grep_line.line});
+      resultEntries_.push_back(
+          {grep_line.record.path, grep_line.line, preview_text});
     }
   } else {
     const std::vector<index::FileRecord> file_records =
@@ -337,16 +464,20 @@ auto MainFrame::runSearch() -> void {
           resultsList_->GetItemCount(), toWxString(file_record.path));
       styleResultRow(resultsList_, row_index);
       resultsList_->SetItem(row_index, 1, wxEmptyString);
+      const std::string preview_text = filePreviewText(file_record);
       resultsList_->SetItem(row_index, 2,
                             toWxString(sizeText(file_record.size)));
       resultsList_->SetItemData(row_index,
                                 static_cast<long>(resultEntries_.size()));
-      resultEntries_.push_back({file_record.path, 0});
+      resultEntries_.push_back({file_record.path, 0, preview_text});
     }
   }
 
-  SetStatusText(
-      toWxString(std::to_string(resultEntries_.size()) + " result(s)"), 0);
+  const auto search_elapsed_time =
+      std::chrono::steady_clock::now() - search_start_time;
+  updateStatusBar(std::to_string(resultEntries_.size()) + " result(s) in " +
+                  durationText(search_elapsed_time));
+  selectFirstResult();
 }
 
 auto MainFrame::showIndexedFiles(std::size_t limit) -> void {
@@ -362,16 +493,18 @@ auto MainFrame::showIndexedFiles(std::size_t limit) -> void {
         resultsList_->GetItemCount(), toWxString(file_record.path));
     styleResultRow(resultsList_, row_index);
     resultsList_->SetItem(row_index, 1, wxEmptyString);
+    const std::string preview_text = filePreviewText(file_record);
     resultsList_->SetItem(row_index, 2, toWxString(sizeText(file_record.size)));
     resultsList_->SetItemData(row_index,
                               static_cast<long>(resultEntries_.size()));
-    resultEntries_.push_back({file_record.path, 0});
+    resultEntries_.push_back({file_record.path, 0, preview_text});
   }
 
   std::ostringstream status_stream;
   status_stream << "Showing " << visible_count << " of " << file_records.size()
                 << " indexed file(s)";
-  SetStatusText(toWxString(status_stream.str()), 0);
+  updateStatusBar(status_stream.str());
+  selectFirstResult();
 }
 
 auto MainFrame::showNoIndexState() -> void {
@@ -381,18 +514,26 @@ auto MainFrame::showNoIndexState() -> void {
   styleResultRow(resultsList_, row_index);
   resultsList_->SetItem(row_index, 1, wxEmptyString);
   resultsList_->SetItem(row_index, 2, "Index content will appear here");
+  previewCtrl_->SetValue("Choose a file or directory, then click Index.");
 }
 
 auto MainFrame::updateIndexState() -> void {
+  indexButton_->Enable();
+  reindexButton_->Enable(hasIndex_);
   searchButton_->Enable(hasIndex_);
+  updateStatusBar(hasIndex_ ? "Ready" : "No index loaded");
+}
+
+auto MainFrame::updateStatusBar(const std::string& activity_text) -> void {
+  SetStatusText(toWxString(activity_text), 0);
   if (!hasIndex_) {
-    SetStatusText("No index loaded", 0);
-    SetStatusText("Choose a path and click Index", 1);
+    SetStatusText("Index: none", 1);
+    SetStatusText("Files: 0", 2);
     return;
   }
 
-  SetStatusText(toWxString("Root: " + rootPath_), 0);
-  SetStatusText(toWxString(indexSummary(index_)), 1);
+  SetStatusText(toWxString("Index: " + rootPath_), 1);
+  SetStatusText(toWxString(indexSummary(index_)), 2);
 }
 
 auto MainFrame::updateResultColumns() -> void {
@@ -417,9 +558,20 @@ auto MainFrame::updateResultColumns() -> void {
   resultsList_->SetColumnWidth(2, details_column_width);
 }
 
+auto MainFrame::selectFirstResult() -> void {
+  if (resultEntries_.empty()) {
+    previewCtrl_->SetValue("No result selected.");
+    return;
+  }
+
+  resultsList_->SetItemState(0, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED);
+  onResultSelected(0);
+}
+
 auto MainFrame::clearResults() -> void {
   resultEntries_.clear();
   resultsList_->DeleteAllItems();
+  previewCtrl_->Clear();
 }
 
 auto MainFrame::showError(const std::string& title,
@@ -447,7 +599,33 @@ auto MainFrame::onBrowseFile() -> void {
 
 auto MainFrame::onIndex() -> void { indexPath(); }
 
+auto MainFrame::onReindex() -> void {
+  if (!hasIndex_ || rootPath_.empty()) {
+    showError("Reindex", "No current index is loaded.");
+    return;
+  }
+
+  pathCtrl_->SetValue(toWxString(rootPath_));
+  indexPath();
+}
+
 auto MainFrame::onSearch() -> void { runSearch(); }
+
+auto MainFrame::onResultSelected(long row_index) -> void {
+  if (row_index < 0) {
+    return;
+  }
+
+  const long result_entry_index = resultsList_->GetItemData(row_index);
+  if (result_entry_index < 0 ||
+      static_cast<std::size_t>(result_entry_index) >= resultEntries_.size()) {
+    return;
+  }
+
+  const ResultEntry& result_entry =
+      resultEntries_[static_cast<std::size_t>(result_entry_index)];
+  previewCtrl_->SetValue(toWxString(result_entry.previewText));
+}
 
 auto MainFrame::onResultActivated(long row_index) -> void {
   if (row_index < 0) {

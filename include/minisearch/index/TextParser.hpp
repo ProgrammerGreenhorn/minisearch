@@ -8,6 +8,7 @@
 
 namespace minisearch::index {
 
+// Represents a term parsed from a text file, along with the line number where it was found.
 struct ParsedTerm {
   std::string term;
   std::uint32_t line = 0;

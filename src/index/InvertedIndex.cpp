@@ -29,6 +29,9 @@ auto findLinePosting(const InvertedIndex::LinePostingList& postings,
                                                   : &*matching_posting_entry;
 }
 
+// Upsert line numbers for a document in a term's posting list. If the document
+// doesn't have an existing posting, a new one is added. If the document already
+// has a posting, the new line numbers are merged with the existing ones.
 auto upsertLinePosting(InvertedIndex::LinePostingList& postings,
                        InvertedIndex::DocumentId document_id,
                        std::vector<std::uint32_t> line_numbers) -> void {
@@ -66,6 +69,8 @@ auto InvertedIndex::addRecord(FileRecord file_record) -> DocumentId {
 auto InvertedIndex::addTermOccurrences(
     DocumentId document_id,
     const std::vector<ParsedTerm>& parsed_terms) -> void {
+  // Group line numbers by term, so that we can upsert each term's postings with
+  // a single call to upsertLinePosting.
   std::unordered_map<std::string, std::vector<std::uint32_t>> lines_by_term;
   for (const auto& parsed_term : parsed_terms) {
     if (parsed_term.term.empty()) {

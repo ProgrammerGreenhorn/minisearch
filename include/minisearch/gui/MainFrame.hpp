@@ -28,6 +28,7 @@ class MainFrame : public wxFrame {
   struct ResultEntry {
     std::filesystem::path path;
     std::uint32_t line = 0;
+    std::string previewText;
   };
 
   /**
@@ -63,9 +64,21 @@ class MainFrame : public wxFrame {
   auto updateIndexState() -> void;
 
   /**
+   * @brief Update the status bar fields.
+   *
+   * @param activity_text Current operation or search result summary.
+   */
+  auto updateStatusBar(const std::string& activity_text) -> void;
+
+  /**
    * @brief Resize result-list columns to match the current window width.
    */
   auto updateResultColumns() -> void;
+
+  /**
+   * @brief Select the first result row and show its preview.
+   */
+  auto selectFirstResult() -> void;
 
   /**
    * @brief Remove all rows from the result list.
@@ -96,9 +109,21 @@ class MainFrame : public wxFrame {
   auto onIndex() -> void;
 
   /**
+   * @brief Rebuild the currently loaded index.
+   */
+  auto onReindex() -> void;
+
+  /**
    * @brief Handle the search button or Enter key in the query field.
    */
   auto onSearch() -> void;
+
+  /**
+   * @brief Update the preview pane from a selected result row.
+   *
+   * @param row_index Result row index in the list control.
+   */
+  auto onResultSelected(long row_index) -> void;
 
   /**
    * @brief Open the file represented by an activated result row.
@@ -111,10 +136,12 @@ class MainFrame : public wxFrame {
   wxButton* browseDirectoryButton_ = nullptr;
   wxButton* browseFileButton_ = nullptr;
   wxButton* indexButton_ = nullptr;
+  wxButton* reindexButton_ = nullptr;
   wxChoice* searchModeChoice_ = nullptr;
   wxTextCtrl* queryCtrl_ = nullptr;
   wxButton* searchButton_ = nullptr;
   wxListCtrl* resultsList_ = nullptr;
+  wxTextCtrl* previewCtrl_ = nullptr;
 
   index::InvertedIndex index_;
   std::string rootPath_;

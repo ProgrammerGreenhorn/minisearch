@@ -15,6 +15,7 @@ auto TextParser::parseFile(const std::filesystem::path& file_path) const
   }
 
   std::vector<ParsedTerm> parsed_terms;
+  parsed_terms.reserve(100);
   std::string line_text;
   std::uint32_t line_number = 1;
   while (std::getline(input_stream, line_text)) {

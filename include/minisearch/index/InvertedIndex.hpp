@@ -11,6 +11,12 @@
 
 namespace minisearch::index {
 
+// Inverted index mapping terms to document ids and line numbers where those
+// terms occur, along with file records for each document id.
+// it looks like : 
+//   term1 -> [ { documentId: 0, lines: [1, 5, 10] }, { documentId: 2, lines: [3] } ]
+//   term2 -> [ { documentId: 1, lines: [2, 4] } ]
+//   ...
 class InvertedIndex {
  public:
   using DocumentId = FileRecord::Id;
