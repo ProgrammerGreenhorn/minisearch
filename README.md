@@ -145,6 +145,18 @@ When refreshing an existing index, unchanged text files reuse their stored
 postings. New or modified text files are parsed again, while removed files are
 left out of the rebuilt index.
 
+## Schema Versioning
+
+Persisted index data carries an explicit schema version. MiniSearch currently
+writes index schema version `2` and can load index versions `1` through `2`.
+Version `2` adds `root_path` metadata; version `1` indexes are migrated in
+memory when loaded.
+
+The `current.pb` pointer has its own schema version. MiniSearch currently
+writes and supports current-index pointer version `1`. Unsupported future
+versions and missing version fields are rejected with explicit errors instead
+of being parsed as current data.
+
 ## Index Visualization
 
 Visualize stored Protobuf index files as a local HTML report:
@@ -165,6 +177,19 @@ Inspect a specific index file or directory:
 ```bash
 python3 scripts/visualize_index_pb.py ~/.minisearch/indexes/<hash>.pb -o /tmp/index.html
 ```
+
+## Logging
+
+MiniSearch logs to the console by default. Set `MINISEARCH_LOG_FILE` to append
+the same log events to a plain-text file without terminal color escape codes:
+
+```bash
+MINISEARCH_LOG_FILE=/tmp/minisearch.log ./build/debug/minisearch ./src
+MINISEARCH_LOG_FILE=/tmp/minisearch-gui.log ./build/debug/minisearch-gui
+```
+
+The logger is process-wide and can also be configured in code through
+`minisearch::util::Logger::instance().setLogFile(...)`.
 
 ## Tests
 
@@ -206,4 +231,4 @@ Main modules:
 - Ranking and fuzzy matching.
 - File-type and path filters.
 - Config file support.
-- Index schema versioning and migration helpers.
+- Additional schema migrations as new persistent fields are added.

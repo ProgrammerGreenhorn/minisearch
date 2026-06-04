@@ -3,14 +3,20 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <system_error>
 
+#include "index.pb.h"
 #include "minisearch/index/IndexRepository.hpp"
+#include "minisearch/index/IndexSchema.hpp"
 
 namespace {
 
+namespace proto = minisearch::index::proto;
+
 using minisearch::index::IndexRepository;
+using minisearch::index::IndexSchema;
 
 class ScopedTempDir {
  public:
@@ -57,6 +63,25 @@ class ScopedHome {
   bool had_old_home_ = false;
 };
 
+auto WriteProtoCurrentIndex(const proto::CurrentIndex& current_index) -> void {
+  std::filesystem::create_directories(
+      IndexRepository::currentPointerFile().parent_path());
+  std::ofstream output_stream(IndexRepository::currentPointerFile(),
+                              std::ios::binary);
+  ASSERT_TRUE(output_stream);
+  ASSERT_TRUE(current_index.SerializeToOstream(&output_stream));
+}
+
+auto ReadProtoCurrentIndex() -> proto::CurrentIndex {
+  std::ifstream input_stream(IndexRepository::currentPointerFile(),
+                             std::ios::binary);
+  EXPECT_TRUE(input_stream);
+
+  proto::CurrentIndex current_index;
+  EXPECT_TRUE(current_index.ParseFromIstream(&input_stream));
+  return current_index;
+}
+
 TEST(IndexRepositoryTest, RepositoryPathsAreUnderHomeDirectory) {
   ScopedTempDir temp_dir("minisearch_index_repository_home");
   ScopedHome scoped_home(temp_dir.path());
@@ -90,6 +115,33 @@ TEST(IndexRepositoryTest, SaveAndLoadCurrentIndexRoundTripsPointer) {
 
   EXPECT_EQ(current_index.rootPath, "root-path");
   EXPECT_EQ(current_index.indexFile, IndexRepository::canonicalKey(index_file));
+}
+
+TEST(IndexRepositoryTest, SaveCurrentIndexWritesCurrentSchemaVersion) {
+  ScopedTempDir temp_dir("minisearch_index_repository_schema");
+  ScopedHome scoped_home(temp_dir.path());
+  const auto index_file = temp_dir.path() / "custom.pb";
+
+  IndexRepository::saveCurrentIndex("root-path", index_file);
+  const proto::CurrentIndex current_index = ReadProtoCurrentIndex();
+
+  EXPECT_EQ(current_index.version(), IndexSchema::currentIndexPointerVersion());
+  EXPECT_EQ(current_index.root_path(), "root-path");
+  EXPECT_EQ(current_index.index_file(),
+            IndexRepository::canonicalKey(index_file));
+}
+
+TEST(IndexRepositoryTest, LoadCurrentIndexThrowsForFutureSchemaVersion) {
+  ScopedTempDir temp_dir("minisearch_index_repository_future");
+  ScopedHome scoped_home(temp_dir.path());
+
+  proto::CurrentIndex current_index;
+  current_index.set_version(IndexSchema::currentIndexPointerVersion() + 1);
+  current_index.set_root_path("root-path");
+  current_index.set_index_file("index.pb");
+  WriteProtoCurrentIndex(current_index);
+
+  EXPECT_THROW(IndexRepository::loadCurrentIndex(), std::runtime_error);
 }
 
 }  // namespace

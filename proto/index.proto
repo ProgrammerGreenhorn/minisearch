@@ -22,6 +22,8 @@ message PostingList {
 }
 
 message Index {
+  // Schema version for persisted index data. Version 1 stored records and
+  // postings. Version 2 added root_path metadata.
   uint32 version = 1;
   repeated FileRecord records = 2;
   repeated PostingList postings = 3;
@@ -29,6 +31,7 @@ message Index {
 }
 
 message CurrentIndex {
+  // Schema version for the pointer to the most recently built index.
   uint32 version = 1;
   string root_path = 2;
   string index_file = 3;

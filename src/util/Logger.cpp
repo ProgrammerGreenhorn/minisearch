@@ -1,15 +1,21 @@
 #include "minisearch/util/Logger.hpp"
 
 #include <chrono>
+#include <cstdlib>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 
 namespace minisearch::util {
 
 namespace {
+
+constexpr std::string_view LogFileEnvironmentVariable = "MINISEARCH_LOG_FILE";
 
 auto label(LogLevel log_level) -> const char* {
   switch (log_level) {
@@ -57,6 +63,14 @@ auto timestamp() -> std::string {
   return timestamp_stream.str();
 }
 
+auto formattedLine(LogLevel log_level,
+                   const std::string& message) -> std::string {
+  std::ostringstream line_stream;
+  line_stream << '[' << timestamp() << "] [" << label(log_level) << "] "
+              << message;
+  return line_stream.str();
+}
+
 }  // namespace
 
 auto relativeSourcePath(const char* source_file) -> std::string {
@@ -71,31 +85,85 @@ auto relativeSourcePath(const char* source_file) -> std::string {
   return std::string(source_path);
 }
 
-auto Logger::log(LogLevel log_level, const std::string& message) -> void {
-  std::ostream& output_stream =
+auto Logger::instance() -> Logger& {
+  static Logger logger;
+  return logger;
+}
+
+Logger::~Logger() = default;
+
+auto Logger::configureFromEnvironment() -> void {
+  const char* log_file_value = std::getenv(LogFileEnvironmentVariable.data());
+  if (log_file_value == nullptr || std::string_view(log_file_value).empty()) {
+    clearLogFile();
+    return;
+  }
+
+  setLogFile(log_file_value);
+}
+
+auto Logger::setLogFile(const std::filesystem::path& log_file) -> void {
+  const std::filesystem::path parent_directory = log_file.parent_path();
+  if (!parent_directory.empty()) {
+    std::error_code create_error;
+    std::filesystem::create_directories(parent_directory, create_error);
+    if (create_error) {
+      throw std::runtime_error("failed to create log directory: " +
+                               parent_directory.string());
+    }
+  }
+
+  auto next_file_stream =
+      std::make_unique<std::ofstream>(log_file, std::ios::app);
+  if (!*next_file_stream) {
+    throw std::runtime_error("failed to open log file: " + log_file.string());
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  fileStream_ = std::move(next_file_stream);
+}
+
+auto Logger::clearLogFile() -> void {
+  std::lock_guard<std::mutex> lock(mutex_);
+  fileStream_.reset();
+}
+
+auto Logger::write(LogLevel log_level, const std::string& message) -> void {
+  const std::string line_text = formattedLine(log_level, message);
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::ostream& console_stream =
       log_level == LogLevel::Error ? std::cerr : std::cout;
-  output_stream << color(log_level) << '[' << timestamp() << "] ["
-                << label(log_level) << "] " << message << "\033[0m\n";
+  console_stream << color(log_level) << line_text << "\033[0m\n";
+
+  if (fileStream_ != nullptr) {
+    *fileStream_ << line_text << '\n';
+    fileStream_->flush();
+  }
+}
+
+auto Logger::log(LogLevel log_level, const std::string& message) -> void {
+  write(log_level, message);
 }
 
 auto Logger::debug(const std::string& message) -> void {
 #ifdef MINISEARCH_ENABLE_DEBUG_LOG
-  log(LogLevel::Debug, message);
+  write(LogLevel::Debug, message);
 #else
   (void)message;
 #endif
 }
 
 auto Logger::info(const std::string& message) -> void {
-  log(LogLevel::Info, message);
+  write(LogLevel::Info, message);
 }
 
 auto Logger::warning(const std::string& message) -> void {
-  log(LogLevel::Warning, message);
+  write(LogLevel::Warning, message);
 }
 
 auto Logger::error(const std::string& message) -> void {
-  log(LogLevel::Error, message);
+  write(LogLevel::Error, message);
 }
 
 }  // namespace minisearch::util

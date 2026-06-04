@@ -11,6 +11,7 @@ class MiniSearchGuiApp : public wxApp {
  public:
   auto OnInit() -> bool override {
     try {
+      minisearch::util::Logger::instance().configureFromEnvironment();
       auto* main_frame = new minisearch::gui::MainFrame();
       main_frame->Show(true);
       return true;

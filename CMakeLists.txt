@@ -53,6 +53,7 @@ add_library(minisearch_lib
     src/index/IndexBuilder.cpp
     src/index/InvertedIndex.cpp
     src/index/IndexRepository.cpp
+    src/index/IndexSchema.cpp
     src/index/IndexStorage.cpp
     src/index/TextParser.cpp
     src/search/SearchEngine.cpp

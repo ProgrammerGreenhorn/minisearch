@@ -5,6 +5,7 @@
 
 auto main(int argument_count, char** argument_values) -> int {
   try {
+    minisearch::util::Logger::instance().configureFromEnvironment();
     const minisearch::app::Application application;
     return application.run(argument_count, argument_values);
   } catch (const std::exception& exception) {

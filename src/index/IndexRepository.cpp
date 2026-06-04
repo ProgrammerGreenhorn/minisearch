@@ -5,8 +5,11 @@
 #include <fstream>
 #include <mutex>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 #include "index.pb.h"
+#include "minisearch/index/IndexSchema.hpp"
 #include "minisearch/util/Hash.hpp"
 #include "minisearch/util/Logger.hpp"
 
@@ -24,7 +27,38 @@ constexpr std::string_view CurrentPointerFileName = "current.pb";
 
 constexpr std::string_view IndexFileExtension = ".pb";
 
-constexpr std::uint32_t CurrentPointerFormatVersion = 1;
+auto unsupportedIndexPointerVersionMessage(std::uint32_t schema_version)
+    -> std::string {
+  return IndexSchema::unsupportedVersionMessage(
+             "current index pointer", schema_version,
+             IndexSchema::indexPointerVersionRange()) +
+         ": " + IndexRepository::currentPointerFile().string();
+}
+
+auto missingIndexPointerMigrationMessage(std::uint32_t schema_version)
+    -> std::string {
+  return "missing current index pointer migration helper for version " +
+         std::to_string(schema_version) + ": " +
+         IndexRepository::currentPointerFile().string();
+}
+
+auto migrateCurrentIndexToCurrentVersion(
+    proto::CurrentIndex& proto_current_index) -> void {
+  if (!IndexSchema::isIndexPointerVersionSupported(
+          proto_current_index.version())) {
+    throw std::runtime_error(
+        unsupportedIndexPointerVersionMessage(proto_current_index.version()));
+  }
+
+  while (proto_current_index.version() <
+         IndexSchema::currentIndexPointerVersion()) {
+    switch (proto_current_index.version()) {
+      default:
+        throw std::runtime_error(
+            missingIndexPointerMigrationMessage(proto_current_index.version()));
+    }
+  }
+}
 
 auto logHomeOnce(const char* home_value) -> void {
   static std::once_flag log_once_flag;
@@ -93,19 +127,19 @@ auto IndexRepository::saveCurrentIndex(const std::string& root_path,
   }
 
   proto::CurrentIndex current_index;
-  current_index.set_version(CurrentPointerFormatVersion);
+  current_index.set_version(IndexSchema::currentIndexPointerVersion());
   current_index.set_root_path(root_path);
   current_index.set_index_file(canonicalKey(index_file));
 
   std::ofstream output_stream(currentPointerFile(), std::ios::binary);
   if (!output_stream) {
     throw std::runtime_error("failed to write current index pointer: " +
-                             currentPointerFile().string());
+                             IndexRepository::currentPointerFile().string());
   }
 
   if (!current_index.SerializeToOstream(&output_stream)) {
     throw std::runtime_error("failed to serialize current index pointer: " +
-                             currentPointerFile().string());
+                             IndexRepository::currentPointerFile().string());
   }
 }
 
@@ -118,13 +152,10 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   proto::CurrentIndex proto_current_index;
   if (!proto_current_index.ParseFromIstream(&input_stream)) {
     throw std::runtime_error("current index pointer is corrupt: " +
-                             currentPointerFile().string());
+                             IndexRepository::currentPointerFile().string());
   }
 
-  if (proto_current_index.version() != CurrentPointerFormatVersion) {
-    throw std::runtime_error("unsupported current index pointer format: " +
-                             currentPointerFile().string());
-  }
+  migrateCurrentIndexToCurrentVersion(proto_current_index);
 
   CurrentIndex current_index;
   current_index.rootPath = proto_current_index.root_path();
@@ -132,7 +163,7 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   if (current_index.rootPath.empty() || current_index.indexFile.empty()) {
     throw std::runtime_error(
         "current index pointer is missing required data: " +
-        currentPointerFile().string());
+        IndexRepository::currentPointerFile().string());
   }
 
   return current_index;

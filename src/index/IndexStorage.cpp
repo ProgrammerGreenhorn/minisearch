@@ -4,16 +4,57 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "index.pb.h"
+#include "minisearch/index/IndexSchema.hpp"
 
 namespace minisearch::index {
 
 namespace {
 
-constexpr std::uint32_t IndexFormatVersion = 2;
+auto unsupportedIndexVersionMessage(std::uint32_t schema_version,
+                                    const std::filesystem::path &index_file)
+    -> std::string {
+  return IndexSchema::unsupportedVersionMessage(
+             "index", schema_version, IndexSchema::indexVersionRange()) +
+         ": " + index_file.string();
+}
+
+auto missingIndexMigrationMessage(std::uint32_t schema_version,
+                                  const std::filesystem::path &index_file)
+    -> std::string {
+  return "missing index migration helper for version " +
+         std::to_string(schema_version) + ": " + index_file.string();
+}
+
+auto migrateIndexV1ToV2(proto::Index &proto_index) -> void {
+  // Version 2 added root_path metadata. The searchable records and postings
+  // are unchanged, so older indexes can be loaded by marking them current.
+  proto_index.set_version(IndexSchema::currentIndexVersion());
+}
+
+auto migrateIndexToCurrentVersion(proto::Index &proto_index,
+                                  const std::filesystem::path &index_file)
+    -> void {
+  if (!IndexSchema::isIndexVersionSupported(proto_index.version())) {
+    throw std::runtime_error(
+        unsupportedIndexVersionMessage(proto_index.version(), index_file));
+  }
+
+  while (proto_index.version() < IndexSchema::currentIndexVersion()) {
+    switch (proto_index.version()) {
+      case 1:
+        migrateIndexV1ToV2(proto_index);
+        break;
+      default:
+        throw std::runtime_error(
+            missingIndexMigrationMessage(proto_index.version(), index_file));
+    }
+  }
+}
 
 }  // namespace
 
@@ -21,7 +62,7 @@ auto IndexStorage::save(const std::filesystem::path &index_file,
                         const InvertedIndex &search_index,
                         const std::filesystem::path &root_path) const -> void {
   proto::Index proto_index;
-  proto_index.set_version(IndexFormatVersion);
+  proto_index.set_version(IndexSchema::currentIndexVersion());
   proto_index.set_root_path(root_path.string());
 
   for (const auto &file_record : search_index.records()) {
@@ -86,10 +127,7 @@ auto IndexStorage::load(const std::filesystem::path &index_file) const
                              index_file.string());
   }
 
-  if (proto_index.version() != IndexFormatVersion) {
-    throw std::runtime_error("unsupported index format: " +
-                             index_file.string());
-  }
+  migrateIndexToCurrentVersion(proto_index, index_file);
 
   std::vector<FileRecord> file_records;
   file_records.reserve(static_cast<std::size_t>(proto_index.records_size()));

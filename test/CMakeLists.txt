@@ -25,6 +25,11 @@ foreach(minisearch_test_source ${MINISEARCH_TEST_SOURCES})
         GTest::gtest
         GTest::gmock_main)
 
+    target_include_directories(${minisearch_test_name}
+        PRIVATE
+        ${GENERATED_PROTO_DIR}
+        ${Protobuf_INCLUDE_DIRS})
+
     target_compile_options(${minisearch_test_name} PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
         $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang>>:-O0 -g3>)
