@@ -10,6 +10,8 @@ constexpr std::uint32_t CurrentIndexVersion = 2;
 constexpr std::uint32_t MinimumSupportedIndexVersion = 1;
 constexpr std::uint32_t CurrentIndexPointerVersion = 1;
 constexpr std::uint32_t MinimumSupportedIndexPointerVersion = 1;
+constexpr std::uint32_t CurrentIndexCatalogVersion = 1;
+constexpr std::uint32_t MinimumSupportedIndexCatalogVersion = 1;
 
 auto isVersionInRange(std::uint32_t schema_version,
                       SchemaVersionRange version_range) -> bool {
@@ -43,6 +45,18 @@ auto IndexSchema::indexPointerVersionRange() -> SchemaVersionRange {
   return {MinimumSupportedIndexPointerVersion, CurrentIndexPointerVersion};
 }
 
+auto IndexSchema::currentIndexCatalogVersion() -> std::uint32_t {
+  return CurrentIndexCatalogVersion;
+}
+
+auto IndexSchema::minimumSupportedIndexCatalogVersion() -> std::uint32_t {
+  return MinimumSupportedIndexCatalogVersion;
+}
+
+auto IndexSchema::indexCatalogVersionRange() -> SchemaVersionRange {
+  return {MinimumSupportedIndexCatalogVersion, CurrentIndexCatalogVersion};
+}
+
 auto IndexSchema::isIndexVersionSupported(std::uint32_t schema_version)
     -> bool {
   return isVersionInRange(schema_version, indexVersionRange());
@@ -51,6 +65,11 @@ auto IndexSchema::isIndexVersionSupported(std::uint32_t schema_version)
 auto IndexSchema::isIndexPointerVersionSupported(std::uint32_t schema_version)
     -> bool {
   return isVersionInRange(schema_version, indexPointerVersionRange());
+}
+
+auto IndexSchema::isIndexCatalogVersionSupported(std::uint32_t schema_version)
+    -> bool {
+  return isVersionInRange(schema_version, indexCatalogVersionRange());
 }
 
 auto IndexSchema::unsupportedVersionMessage(

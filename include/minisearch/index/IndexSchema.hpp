@@ -56,6 +56,27 @@ class IndexSchema {
   static auto indexPointerVersionRange() -> SchemaVersionRange;
 
   /**
+   * @brief Get the current index-catalog schema version.
+   *
+   * @return Current index-catalog schema version written by MiniSearch.
+   */
+  static auto currentIndexCatalogVersion() -> std::uint32_t;
+
+  /**
+   * @brief Get the oldest index-catalog schema version that can load.
+   *
+   * @return Minimum supported index-catalog schema version.
+   */
+  static auto minimumSupportedIndexCatalogVersion() -> std::uint32_t;
+
+  /**
+   * @brief Get the supported index-catalog schema version range.
+   *
+   * @return Supported index-catalog schema range.
+   */
+  static auto indexCatalogVersionRange() -> SchemaVersionRange;
+
+  /**
    * @brief Check whether an index schema version can be loaded.
    *
    * @param schema_version Index schema version from persisted data.
@@ -71,6 +92,15 @@ class IndexSchema {
    * @return True when the version is supported.
    */
   static auto isIndexPointerVersionSupported(std::uint32_t schema_version)
+      -> bool;
+
+  /**
+   * @brief Check whether an index-catalog version can be loaded.
+   *
+   * @param schema_version Index-catalog schema version from persisted data.
+   * @return True when the version is supported.
+   */
+  static auto isIndexCatalogVersionSupported(std::uint32_t schema_version)
       -> bool;
 
   /**

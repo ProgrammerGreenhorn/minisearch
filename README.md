@@ -12,6 +12,7 @@ through both a CLI interactive shell and a native wxWidgets desktop GUI.
 - Search indexed file names and paths.
 - Search indexed text content by tokenized terms and line numbers.
 - Browse results through either the interactive shell or the GUI.
+- Switch between recently built indexes in the GUI.
 - Visualize stored `.pb` index files as a local HTML report.
 
 ## Requirements
@@ -116,6 +117,7 @@ Run the native wxWidgets GUI:
 The GUI can:
 
 - Load the current index on startup.
+- Choose from recently built indexes and open them without reindexing.
 - Choose a file or directory and build an index for it.
 - Reindex the currently loaded root.
 - Search file names or indexed text content.
@@ -129,6 +131,7 @@ Index metadata is stored under `~/.minisearch`:
 ```text
 ~/.minisearch/
   current.pb
+  indexes.pb
   indexes/
     <canonical-path-hash>.pb
 ```
@@ -139,7 +142,9 @@ that path, and stores the real index at
 
 After a successful indexing run, `~/.minisearch/current.pb` points to the most
 recent index. That is why running `minisearch` without arguments reopens the
-last indexed root.
+last indexed root. MiniSearch also updates `~/.minisearch/indexes.pb`, a recent
+index catalog used by the GUI to switch between previously built indexes
+without rebuilding them.
 
 When refreshing an existing index, unchanged text files reuse their stored
 postings. New or modified text files are parsed again, while removed files are

@@ -203,6 +203,11 @@ auto indexSummary(const index::InvertedIndex& search_index) -> std::string {
   return summary_stream.str();
 }
 
+auto recentIndexText(const index::IndexRepository::ManagedIndex& managed_index)
+    -> std::string {
+  return managed_index.rootPath;
+}
+
 auto styleLabel(wxStaticText* label) -> void {
   label->SetForegroundColour(mutedTextColor());
 }
@@ -284,6 +289,22 @@ MainFrame::MainFrame()
   path_sizer->Add(reindexButton_, 0);
   root_sizer->Add(path_sizer, 0, wxEXPAND | wxALL, 12);
 
+  auto* recent_sizer = new wxBoxSizer(wxHORIZONTAL);
+  auto* recent_label = new wxStaticText(main_panel, wxID_ANY, "Recent");
+  styleLabel(recent_label);
+  recent_sizer->Add(recent_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+  recentIndexChoice_ = new wxChoice(main_panel, wxID_ANY);
+  recentIndexChoice_->SetMinSize(wxSize(260, -1));
+  styleChoice(recentIndexChoice_);
+  recent_sizer->Add(recentIndexChoice_, 1, wxRIGHT, 8);
+
+  openRecentButton_ = new wxButton(main_panel, wxID_ANY, "Open");
+  openRecentButton_->SetMinSize(wxSize(80, -1));
+  styleButton(openRecentButton_, softButtonColor(), textColor());
+  recent_sizer->Add(openRecentButton_, 0);
+  root_sizer->Add(recent_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+
   auto* search_sizer = new wxBoxSizer(wxHORIZONTAL);
   searchModeChoice_ = new wxChoice(main_panel, wxID_ANY);
   searchModeChoice_->SetMinSize(wxSize(150, -1));
@@ -336,6 +357,8 @@ MainFrame::MainFrame()
                           [this](wxCommandEvent&) { onBrowseFile(); });
   indexButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onIndex(); });
   reindexButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onReindex(); });
+  openRecentButton_->Bind(wxEVT_BUTTON,
+                          [this](wxCommandEvent&) { onOpenRecent(); });
   searchButton_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { onSearch(); });
   queryCtrl_->Bind(wxEVT_TEXT_ENTER, [this](wxCommandEvent&) { onSearch(); });
   resultsList_->Bind(wxEVT_LIST_ITEM_SELECTED, [this](wxListEvent& list_event) {
@@ -351,6 +374,7 @@ MainFrame::MainFrame()
   });
 
   loadCurrentIndex();
+  refreshRecentIndexes();
   updateIndexState();
   if (hasIndex_) {
     showIndexedFiles(SearchLimit);
@@ -364,12 +388,7 @@ auto MainFrame::loadCurrentIndex() -> void {
   try {
     const index::IndexRepository::CurrentIndex current_index =
         index::IndexRepository::loadCurrentIndex();
-    index::IndexStorage index_storage;
-    index_ = index_storage.load(current_index.indexFile);
-    rootPath_ = current_index.rootPath;
-    indexFile_ = current_index.indexFile;
-    hasIndex_ = true;
-    pathCtrl_->SetValue(toWxString(rootPath_));
+    loadManagedIndex({current_index.rootPath, current_index.indexFile, 0});
   } catch (const std::exception& exception) {
     hasIndex_ = false;
     rootPath_.clear();
@@ -377,6 +396,45 @@ auto MainFrame::loadCurrentIndex() -> void {
     updateStatusBar("No current index loaded");
     SetStatusText(toWxString(std::string(exception.what())), 2);
   }
+}
+
+auto MainFrame::loadManagedIndex(
+    const index::IndexRepository::ManagedIndex& managed_index) -> void {
+  index::IndexStorage index_storage;
+  index::InvertedIndex loaded_index =
+      index_storage.load(managed_index.indexFile);
+
+  index_ = std::move(loaded_index);
+  rootPath_ = managed_index.rootPath;
+  indexFile_ = managed_index.indexFile;
+  hasIndex_ = true;
+  pathCtrl_->SetValue(toWxString(rootPath_));
+}
+
+auto MainFrame::refreshRecentIndexes() -> void {
+  recentIndexes_ = index::IndexRepository::loadRecentIndexes();
+  recentIndexChoice_->Clear();
+
+  int selected_recent_index = recentIndexes_.empty() ? wxNOT_FOUND : 0;
+  for (std::size_t recent_index = 0; recent_index < recentIndexes_.size();
+       ++recent_index) {
+    const auto& managed_index = recentIndexes_[recent_index];
+    recentIndexChoice_->Append(toWxString(recentIndexText(managed_index)));
+    if (hasIndex_ && managed_index.rootPath == rootPath_) {
+      selected_recent_index = static_cast<int>(recent_index);
+    }
+  }
+
+  if (selected_recent_index != wxNOT_FOUND) {
+    recentIndexChoice_->SetSelection(selected_recent_index);
+  }
+  updateRecentIndexState();
+}
+
+auto MainFrame::updateRecentIndexState() -> void {
+  const bool has_recent_indexes = !recentIndexes_.empty();
+  recentIndexChoice_->Enable(has_recent_indexes);
+  openRecentButton_->Enable(has_recent_indexes);
 }
 
 auto MainFrame::indexPath() -> void {
@@ -409,6 +467,7 @@ auto MainFrame::indexPath() -> void {
     status_stream << "Indexed " << rootPath_ << "  Reused "
                   << build_result.reusedTextFiles << "  Parsed "
                   << build_result.parsedTextFiles;
+    refreshRecentIndexes();
     updateIndexState();
     runSearch();
     updateStatusBar(status_stream.str());
@@ -514,13 +573,18 @@ auto MainFrame::showNoIndexState() -> void {
   styleResultRow(resultsList_, row_index);
   resultsList_->SetItem(row_index, 1, wxEmptyString);
   resultsList_->SetItem(row_index, 2, "Index content will appear here");
-  previewCtrl_->SetValue("Choose a file or directory, then click Index.");
+  previewCtrl_->SetValue(
+      recentIndexes_.empty()
+          ? "Choose a file or directory, then click Index."
+          : "Choose a file or directory, or select a recent index and click "
+            "Open.");
 }
 
 auto MainFrame::updateIndexState() -> void {
   indexButton_->Enable();
   reindexButton_->Enable(hasIndex_);
   searchButton_->Enable(hasIndex_);
+  updateRecentIndexState();
   updateStatusBar(hasIndex_ ? "Ready" : "No index loaded");
 }
 
@@ -607,6 +671,29 @@ auto MainFrame::onReindex() -> void {
 
   pathCtrl_->SetValue(toWxString(rootPath_));
   indexPath();
+}
+
+auto MainFrame::onOpenRecent() -> void {
+  const int selected_recent_index = recentIndexChoice_->GetSelection();
+  if (selected_recent_index == wxNOT_FOUND ||
+      static_cast<std::size_t>(selected_recent_index) >=
+          recentIndexes_.size()) {
+    showError("Open recent index", "Select a recent index to open.");
+    return;
+  }
+
+  try {
+    wxBusyCursor busy_cursor;
+    const auto& managed_index =
+        recentIndexes_[static_cast<std::size_t>(selected_recent_index)];
+    loadManagedIndex(managed_index);
+    updateIndexState();
+    showIndexedFiles(SearchLimit);
+    updateStatusBar("Opened recent index: " + rootPath_);
+  } catch (const std::exception& exception) {
+    showError("Open recent index failed", exception.what());
+    updateIndexState();
+  }
 }
 
 auto MainFrame::onSearch() -> void { runSearch(); }

@@ -2,6 +2,9 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
+
+#include "minisearch/index/IndexCatalogStorage.hpp"
 
 namespace minisearch::index {
 
@@ -11,6 +14,8 @@ class IndexRepository {
     std::string rootPath;
     std::filesystem::path indexFile;
   };
+
+  using ManagedIndex = minisearch::index::ManagedIndex;
 
   /**
    * @brief Resolve the MiniSearch data directory.
@@ -32,6 +37,13 @@ class IndexRepository {
    * @return Path to the current index pointer protobuf file.
    */
   static auto currentPointerFile() -> std::filesystem::path;
+
+  /**
+   * @brief Resolve the recent-index catalog file.
+   *
+   * @return Path to the index catalog protobuf file.
+   */
+  static auto indexCatalogFile() -> std::filesystem::path;
 
   /**
    * @brief Generate a stable string key for an indexed path.
@@ -66,6 +78,13 @@ class IndexRepository {
    * @return Current index root path and protobuf file path.
    */
   static auto loadCurrentIndex() -> CurrentIndex;
+
+  /**
+   * @brief Load the recently built index catalog.
+   *
+   * @return Recent indexes ordered from newest to oldest.
+   */
+  static auto loadRecentIndexes() -> std::vector<ManagedIndex>;
 };
 
 }  // namespace minisearch::index

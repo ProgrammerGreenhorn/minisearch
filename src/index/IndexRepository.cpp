@@ -1,14 +1,19 @@
 #include "minisearch/index/IndexRepository.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "index.pb.h"
+#include "minisearch/index/IndexCatalogStorage.hpp"
 #include "minisearch/index/IndexSchema.hpp"
 #include "minisearch/util/Hash.hpp"
 #include "minisearch/util/Logger.hpp"
@@ -25,7 +30,11 @@ constexpr std::string_view IndexesDirectoryName = "indexes";
 
 constexpr std::string_view CurrentPointerFileName = "current.pb";
 
+constexpr std::string_view IndexCatalogFileName = "indexes.pb";
+
 constexpr std::string_view IndexFileExtension = ".pb";
+
+constexpr std::size_t MaxRecentIndexes = 20;
 
 auto unsupportedIndexPointerVersionMessage(std::uint32_t schema_version)
     -> std::string {
@@ -60,6 +69,44 @@ auto migrateCurrentIndexToCurrentVersion(
   }
 }
 
+auto catalogFileExists() -> bool {
+  std::error_code exists_error;
+  const bool catalog_exists = std::filesystem::exists(
+      IndexRepository::indexCatalogFile(), exists_error);
+  if (exists_error) {
+    throw std::runtime_error("failed to check index catalog: " +
+                             IndexRepository::indexCatalogFile().string());
+  }
+  return catalog_exists;
+}
+
+auto saveManagedIndex(const std::string& root_path,
+                      const std::filesystem::path& index_file) -> void {
+  IndexCatalogStorage index_catalog_storage;
+  std::vector<IndexRepository::ManagedIndex> managed_indexes =
+      index_catalog_storage.load(IndexRepository::indexCatalogFile());
+
+  const std::filesystem::path canonical_index_file =
+      IndexRepository::canonicalKey(index_file);
+  managed_indexes.erase(
+      std::remove_if(managed_indexes.begin(), managed_indexes.end(),
+                     [&root_path, &canonical_index_file](
+                         const IndexRepository::ManagedIndex& managed_index) {
+                       return managed_index.rootPath == root_path ||
+                              managed_index.indexFile == canonical_index_file;
+                     }),
+      managed_indexes.end());
+
+  managed_indexes.insert(managed_indexes.begin(),
+                         {root_path, canonical_index_file, std::time(nullptr)});
+  if (managed_indexes.size() > MaxRecentIndexes) {
+    managed_indexes.resize(MaxRecentIndexes);
+  }
+
+  index_catalog_storage.save(IndexRepository::indexCatalogFile(),
+                             managed_indexes);
+}
+
 auto logHomeOnce(const char* home_value) -> void {
   static std::once_flag log_once_flag;
   std::call_once(log_once_flag, [home_value]() -> void {
@@ -86,6 +133,10 @@ auto IndexRepository::indexesRoot() -> std::filesystem::path {
 
 auto IndexRepository::currentPointerFile() -> std::filesystem::path {
   return dataRoot() / CurrentPointerFileName;
+}
+
+auto IndexRepository::indexCatalogFile() -> std::filesystem::path {
+  return dataRoot() / IndexCatalogFileName;
 }
 
 auto IndexRepository::canonicalKey(const std::filesystem::path& indexed_path)
@@ -141,6 +192,8 @@ auto IndexRepository::saveCurrentIndex(const std::string& root_path,
     throw std::runtime_error("failed to serialize current index pointer: " +
                              IndexRepository::currentPointerFile().string());
   }
+
+  saveManagedIndex(root_path, index_file);
 }
 
 auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
@@ -167,6 +220,20 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   }
 
   return current_index;
+}
+
+auto IndexRepository::loadRecentIndexes() -> std::vector<ManagedIndex> {
+  if (catalogFileExists()) {
+    IndexCatalogStorage index_catalog_storage;
+    return index_catalog_storage.load(indexCatalogFile());
+  }
+
+  try {
+    const CurrentIndex current_index = loadCurrentIndex();
+    return {{current_index.rootPath, current_index.indexFile, 0}};
+  } catch (const std::exception&) {
+    return {};
+  }
 }
 
 }  // namespace minisearch::index

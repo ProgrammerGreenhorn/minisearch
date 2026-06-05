@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "minisearch/index/IndexRepository.hpp"
 #include "minisearch/index/InvertedIndex.hpp"
 
 class wxButton;
@@ -35,6 +36,24 @@ class MainFrame : public wxFrame {
    * @brief Load the current index pointer and index file if available.
    */
   auto loadCurrentIndex() -> void;
+
+  /**
+   * @brief Load a managed index into the current window state.
+   *
+   * @param managed_index Recent index metadata to open.
+   */
+  auto loadManagedIndex(
+      const index::IndexRepository::ManagedIndex& managed_index) -> void;
+
+  /**
+   * @brief Refresh the recent-index picker from persisted metadata.
+   */
+  auto refreshRecentIndexes() -> void;
+
+  /**
+   * @brief Update recent-index picker enabled state.
+   */
+  auto updateRecentIndexState() -> void;
 
   /**
    * @brief Build or refresh an index for the path in the path control.
@@ -114,6 +133,11 @@ class MainFrame : public wxFrame {
   auto onReindex() -> void;
 
   /**
+   * @brief Open the selected recent index.
+   */
+  auto onOpenRecent() -> void;
+
+  /**
    * @brief Handle the search button or Enter key in the query field.
    */
   auto onSearch() -> void;
@@ -137,6 +161,8 @@ class MainFrame : public wxFrame {
   wxButton* browseFileButton_ = nullptr;
   wxButton* indexButton_ = nullptr;
   wxButton* reindexButton_ = nullptr;
+  wxChoice* recentIndexChoice_ = nullptr;
+  wxButton* openRecentButton_ = nullptr;
   wxChoice* searchModeChoice_ = nullptr;
   wxTextCtrl* queryCtrl_ = nullptr;
   wxButton* searchButton_ = nullptr;
@@ -148,6 +174,7 @@ class MainFrame : public wxFrame {
   std::filesystem::path indexFile_;
   bool hasIndex_ = false;
   std::vector<ResultEntry> resultEntries_;
+  std::vector<index::IndexRepository::ManagedIndex> recentIndexes_;
 };
 
 }  // namespace minisearch::gui

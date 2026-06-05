@@ -51,6 +51,7 @@ add_library(minisearch_lib
     src/cli/CommandParser.cpp
     src/index/FileScanner.cpp
     src/index/IndexBuilder.cpp
+    src/index/IndexCatalogStorage.cpp
     src/index/InvertedIndex.cpp
     src/index/IndexRepository.cpp
     src/index/IndexSchema.cpp

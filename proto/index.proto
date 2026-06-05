@@ -36,3 +36,15 @@ message CurrentIndex {
   string root_path = 2;
   string index_file = 3;
 }
+
+message IndexCatalogEntry {
+  string root_path = 1;
+  string index_file = 2;
+  int64 updated_time = 3;
+}
+
+message IndexCatalog {
+  // Schema version for the list of recently built indexes.
+  uint32 version = 1;
+  repeated IndexCatalogEntry entries = 2;
+}

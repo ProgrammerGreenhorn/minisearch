@@ -6,6 +6,7 @@
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include "index.pb.h"
 #include "minisearch/index/IndexRepository.hpp"
@@ -82,6 +83,15 @@ auto ReadProtoCurrentIndex() -> proto::CurrentIndex {
   return current_index;
 }
 
+auto WriteProtoIndexCatalog(const proto::IndexCatalog& index_catalog) -> void {
+  std::filesystem::create_directories(
+      IndexRepository::indexCatalogFile().parent_path());
+  std::ofstream output_stream(IndexRepository::indexCatalogFile(),
+                              std::ios::binary);
+  ASSERT_TRUE(output_stream);
+  ASSERT_TRUE(index_catalog.SerializeToOstream(&output_stream));
+}
+
 TEST(IndexRepositoryTest, RepositoryPathsAreUnderHomeDirectory) {
   ScopedTempDir temp_dir("minisearch_index_repository_home");
   ScopedHome scoped_home(temp_dir.path());
@@ -91,6 +101,8 @@ TEST(IndexRepositoryTest, RepositoryPathsAreUnderHomeDirectory) {
             temp_dir.path() / ".minisearch" / "indexes");
   EXPECT_EQ(IndexRepository::currentPointerFile(),
             temp_dir.path() / ".minisearch" / "current.pb");
+  EXPECT_EQ(IndexRepository::indexCatalogFile(),
+            temp_dir.path() / ".minisearch" / "indexes.pb");
 }
 
 TEST(IndexRepositoryTest, IndexFileForPathUsesIndexesDirectoryAndPbExtension) {
@@ -129,6 +141,74 @@ TEST(IndexRepositoryTest, SaveCurrentIndexWritesCurrentSchemaVersion) {
   EXPECT_EQ(current_index.root_path(), "root-path");
   EXPECT_EQ(current_index.index_file(),
             IndexRepository::canonicalKey(index_file));
+}
+
+TEST(IndexRepositoryTest, SaveCurrentIndexUpdatesRecentIndexCatalog) {
+  ScopedTempDir temp_dir("minisearch_index_repository_catalog");
+  ScopedHome scoped_home(temp_dir.path());
+  const auto first_index_file = temp_dir.path() / "first.pb";
+  const auto second_index_file = temp_dir.path() / "second.pb";
+
+  IndexRepository::saveCurrentIndex("first-root", first_index_file);
+  IndexRepository::saveCurrentIndex("second-root", second_index_file);
+
+  const std::vector<IndexRepository::ManagedIndex> recent_indexes =
+      IndexRepository::loadRecentIndexes();
+  ASSERT_EQ(recent_indexes.size(), 2U);
+  EXPECT_EQ(recent_indexes[0].rootPath, "second-root");
+  EXPECT_EQ(recent_indexes[0].indexFile,
+            IndexRepository::canonicalKey(second_index_file));
+  EXPECT_EQ(recent_indexes[1].rootPath, "first-root");
+  EXPECT_EQ(recent_indexes[1].indexFile,
+            IndexRepository::canonicalKey(first_index_file));
+}
+
+TEST(IndexRepositoryTest, SaveCurrentIndexMovesExistingRecentIndexToFront) {
+  ScopedTempDir temp_dir("minisearch_index_repository_catalog_dedupe");
+  ScopedHome scoped_home(temp_dir.path());
+  const auto first_index_file = temp_dir.path() / "first.pb";
+  const auto second_index_file = temp_dir.path() / "second.pb";
+
+  IndexRepository::saveCurrentIndex("first-root", first_index_file);
+  IndexRepository::saveCurrentIndex("second-root", second_index_file);
+  IndexRepository::saveCurrentIndex("first-root", first_index_file);
+
+  const std::vector<IndexRepository::ManagedIndex> recent_indexes =
+      IndexRepository::loadRecentIndexes();
+  ASSERT_EQ(recent_indexes.size(), 2U);
+  EXPECT_EQ(recent_indexes[0].rootPath, "first-root");
+  EXPECT_EQ(recent_indexes[1].rootPath, "second-root");
+}
+
+TEST(IndexRepositoryTest, LoadRecentIndexesFallsBackToCurrentPointer) {
+  ScopedTempDir temp_dir("minisearch_index_repository_catalog_fallback");
+  ScopedHome scoped_home(temp_dir.path());
+
+  proto::CurrentIndex current_index;
+  current_index.set_version(IndexSchema::currentIndexPointerVersion());
+  current_index.set_root_path("legacy-root");
+  current_index.set_index_file("legacy.pb");
+  WriteProtoCurrentIndex(current_index);
+
+  const std::vector<IndexRepository::ManagedIndex> recent_indexes =
+      IndexRepository::loadRecentIndexes();
+  ASSERT_EQ(recent_indexes.size(), 1U);
+  EXPECT_EQ(recent_indexes[0].rootPath, "legacy-root");
+  EXPECT_EQ(recent_indexes[0].indexFile, std::filesystem::path("legacy.pb"));
+}
+
+TEST(IndexRepositoryTest, LoadRecentIndexesThrowsForFutureCatalogVersion) {
+  ScopedTempDir temp_dir("minisearch_index_repository_catalog_future");
+  ScopedHome scoped_home(temp_dir.path());
+
+  proto::IndexCatalog index_catalog;
+  index_catalog.set_version(IndexSchema::currentIndexCatalogVersion() + 1);
+  proto::IndexCatalogEntry* catalog_entry = index_catalog.add_entries();
+  catalog_entry->set_root_path("root-path");
+  catalog_entry->set_index_file("index.pb");
+  WriteProtoIndexCatalog(index_catalog);
+
+  EXPECT_THROW(IndexRepository::loadRecentIndexes(), std::runtime_error);
 }
 
 TEST(IndexRepositoryTest, LoadCurrentIndexThrowsForFutureSchemaVersion) {
