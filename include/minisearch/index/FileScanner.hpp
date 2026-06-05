@@ -8,6 +8,12 @@
 
 namespace minisearch::index {
 
+/**
+ * @brief Scan paths into file records that can be indexed.
+ *
+ * FileScanner walks files and directories, filters out excluded entries, and
+ * decides which files should also have text content parsed.
+ */
 class FileScanner {
  public:
   struct Options {

@@ -13,6 +13,12 @@
 
 namespace minisearch::util {
 
+/**
+ * @brief Execute submitted work on a fixed set of background workers.
+ *
+ * ThreadPool owns the worker threads, queues tasks, and returns futures for
+ * submitted callables.
+ */
 class ThreadPool {
  public:
   /**

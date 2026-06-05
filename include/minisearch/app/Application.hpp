@@ -2,6 +2,12 @@
 
 namespace minisearch::app {
 
+/**
+ * @brief Coordinate startup and dispatch MiniSearch CLI actions.
+ *
+ * Application parses the command line, chooses the requested mode, and hands
+ * off to the index builder or interactive shell.
+ */
 class Application {
  public:
   /**

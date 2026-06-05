@@ -8,6 +8,12 @@
 
 namespace minisearch::index {
 
+/**
+ * @brief Build or refresh an inverted index from a target path.
+ *
+ * The builder scans the filesystem, reuses unchanged records when possible,
+ * parses changed text files, and persists the rebuilt index metadata.
+ */
 class IndexBuilder {
  public:
   struct Options {

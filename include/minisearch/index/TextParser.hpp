@@ -8,12 +8,19 @@
 
 namespace minisearch::index {
 
-// Represents a term parsed from a text file, along with the line number where it was found.
+// Represents a term parsed from a text file, along with the line number where
+// it was found.
 struct ParsedTerm {
   std::string term;
   std::uint32_t line = 0;
 };
 
+/**
+ * @brief Tokenize file content into lowercase terms with line numbers.
+ *
+ * TextParser turns source text into parsed terms that the index builder can
+ * attach to document ids and persist in the inverted index.
+ */
 class TextParser {
  public:
   /**

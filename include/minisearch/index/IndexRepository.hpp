@@ -8,6 +8,13 @@
 
 namespace minisearch::index {
 
+/**
+ * @brief Owns the MiniSearch index metadata paths and persistence helpers.
+ *
+ * This class resolves the data-directory layout under ~/.minisearch and
+ * reads/writes the protobuf files that track the current index pointer and
+ * recent index catalog.
+ */
 class IndexRepository {
  public:
   struct CurrentIndex {

@@ -18,6 +18,12 @@ class wxTextCtrl;
 
 namespace minisearch::gui {
 
+/**
+ * @brief Main wxWidgets window for browsing indexes and running searches.
+ *
+ * MainFrame wires the GUI controls to indexing, recent-index selection, and
+ * search result display.
+ */
 class MainFrame : public wxFrame {
  public:
   /**

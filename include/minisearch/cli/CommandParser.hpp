@@ -16,6 +16,12 @@ struct CommandOptions {
   std::size_t threads = 0;
 };
 
+/**
+ * @brief Parse MiniSearch command-line arguments and usage text.
+ *
+ * The parser resolves the requested command, target path, output file, and
+ * worker count before the application hands control to the runtime mode.
+ */
 class CommandParser {
  public:
   /**

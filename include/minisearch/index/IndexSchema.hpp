@@ -11,6 +11,12 @@ struct SchemaVersionRange {
   std::uint32_t currentVersion = 0;
 };
 
+/**
+ * @brief Centralize protobuf schema versions and compatibility checks.
+ *
+ * IndexSchema defines the supported version ranges for persisted index files,
+ * current-index pointers, and recent-index catalogs.
+ */
 class IndexSchema {
  public:
   /**

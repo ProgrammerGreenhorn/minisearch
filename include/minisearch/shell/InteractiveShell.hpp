@@ -7,6 +7,12 @@
 
 namespace minisearch::shell {
 
+/**
+ * @brief Run the text shell for indexing and searching MiniSearch data.
+ *
+ * InteractiveShell owns the command loop, current index state, and the shell
+ * commands that open, build, search, and inspect indexes.
+ */
 class InteractiveShell {
  public:
   /**

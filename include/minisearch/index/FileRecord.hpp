@@ -7,6 +7,13 @@
 
 namespace minisearch::index {
 
+/**
+ * @brief Describe one file stored in the index.
+ *
+ * FileRecord carries the path, size, modification time, and text-indexing
+ * metadata for a file, plus its assigned document id when it is part of an
+ * inverted index.
+ */
 struct FileRecord {
   using Id = std::uint32_t;
 

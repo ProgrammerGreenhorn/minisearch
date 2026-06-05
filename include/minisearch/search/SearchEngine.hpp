@@ -14,6 +14,12 @@ namespace minisearch::search {
 
 inline constexpr std::size_t Limit = std::numeric_limits<std::size_t>::max();
 
+/**
+ * @brief Query an in-memory inverted index for names and content.
+ *
+ * SearchEngine wraps the lower-level inverted index with display-oriented
+ * helpers for filename search, grep-style search, and result formatting.
+ */
 class SearchEngine {
  public:
   using GrepMatch = index::InvertedIndex::LineMatch;

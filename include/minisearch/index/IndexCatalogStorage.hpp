@@ -13,6 +13,12 @@ struct ManagedIndex {
   std::time_t updatedTime = 0;
 };
 
+/**
+ * @brief Persist the catalog of recently built indexes.
+ *
+ * IndexCatalogStorage loads and saves the protobuf file that powers the
+ * "recent" index list in the shell and GUI.
+ */
 class IndexCatalogStorage {
  public:
   /**

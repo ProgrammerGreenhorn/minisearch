@@ -7,6 +7,12 @@
 
 namespace minisearch::index {
 
+/**
+ * @brief Persist complete inverted indexes and lightweight metadata.
+ *
+ * IndexStorage serializes the full search index to protobuf files and can read
+ * either the full index or just the root-path metadata back from disk.
+ */
 class IndexStorage {
  public:
   struct Metadata {

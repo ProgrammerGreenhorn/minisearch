@@ -22,6 +22,12 @@ enum class LogLevel { Debug, Info, Warning, Error };
  */
 auto relativeSourcePath(const char* source_file) -> std::string;
 
+/**
+ * @brief Provide the process-wide asynchronous logger and file sink.
+ *
+ * Logger formats log messages, queues them on a background worker, and writes
+ * them to stdout/stderr and an optional log file.
+ */
 class Logger {
  public:
   /**
