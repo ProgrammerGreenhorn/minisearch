@@ -1,5 +1,6 @@
 #include "minisearch/app/Application.hpp"
 
+#include <exception>
 #include <iostream>
 #include <utility>
 
@@ -41,15 +42,22 @@ auto runIndex(const CommandOptions& command_options) -> int {
 }
 
 auto runOpenCurrent() -> int {
-  const IndexRepository::CurrentIndex current_index =
-      IndexRepository::loadCurrentIndex();
-  IndexStorage index_storage;
-  index::InvertedIndex loaded_index =
-      index_storage.load(current_index.indexFile);
+  try {
+    const IndexRepository::CurrentIndex current_index =
+        IndexRepository::loadCurrentIndex();
+    IndexStorage index_storage;
+    index::InvertedIndex loaded_index =
+        index_storage.load(current_index.indexFile);
 
-  InteractiveShell interactive_shell(
-      std::move(loaded_index), current_index.rootPath, current_index.indexFile);
-  return interactive_shell.run();
+    InteractiveShell interactive_shell(std::move(loaded_index),
+                                       current_index.rootPath,
+                                       current_index.indexFile);
+    return interactive_shell.run();
+  } catch (const std::exception& exception) {
+    std::cout << "No current index loaded: " << exception.what() << '\n';
+    InteractiveShell interactive_shell;
+    return interactive_shell.run();
+  }
 }
 
 }  // namespace

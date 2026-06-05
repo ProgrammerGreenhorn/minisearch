@@ -10,6 +10,11 @@ namespace minisearch::shell {
 class InteractiveShell {
  public:
   /**
+   * @brief Create a shell with no loaded index.
+   */
+  InteractiveShell();
+
+  /**
    * @brief Create a shell for an already loaded index.
    *
    * @param search_index Search index used by shell commands.
@@ -39,6 +44,26 @@ class InteractiveShell {
    * @brief Print shell command help.
    */
   auto printHelp() const -> void;
+
+  /**
+   * @brief Check whether an index is loaded before running a command.
+   *
+   * @param command_name Command that needs an index.
+   * @return True when an index is loaded.
+   */
+  auto requireIndex(const std::string& command_name) const -> bool;
+
+  /**
+   * @brief Build an index for a path entered in the shell.
+   *
+   * @param path_text File or directory path to index.
+   */
+  auto indexPath(const std::string& path_text) -> void;
+
+  /**
+   * @brief Print recently built index roots.
+   */
+  auto printRecent() const -> void;
 
   /**
    * @brief Print index statistics.
@@ -72,6 +97,7 @@ class InteractiveShell {
   index::InvertedIndex index_;
   std::string rootPath_;
   std::filesystem::path indexFile_;
+  bool hasIndex_ = false;
 };
 
 }  // namespace minisearch::shell

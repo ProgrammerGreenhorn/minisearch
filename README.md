@@ -70,21 +70,30 @@ cmake --install build/debug
 
 ## CLI Usage
 
-Index a path and open the interactive shell:
-
-```bash
-./build/debug/minisearch ./src
-```
-
-Open the most recently built index:
+Open the interactive shell:
 
 ```bash
 ./build/debug/minisearch
 ```
 
+If a current index exists, the shell loads it automatically. Otherwise, choose a
+file or directory from inside the shell:
+
+```text
+(minisearch) index ./src
+```
+
+The legacy one-shot path form still builds the index and then opens the shell:
+
+```bash
+./build/debug/minisearch ./src
+```
+
 Interactive shell commands:
 
 ```text
+(minisearch) index ./src
+(minisearch) recent
 (minisearch) find main
 (minisearch) grep ThreadPool
 (minisearch) show
@@ -98,6 +107,9 @@ Command summary:
 
 | Command | Description |
 | --- | --- |
+| `index <path>` | Build or refresh an index for a file or directory. |
+| `parse <path>` | Alias for `index <path>`. |
+| `recent` | Show recently indexed roots by path. |
 | `find <query>` | Search indexed file names and paths. |
 | `grep <query>` | Search indexed text content and print matching lines. |
 | `show` | Show all indexed files. |
@@ -141,10 +153,12 @@ that path, and stores the real index at
 `~/.minisearch/indexes/<canonical-path-hash>.pb`.
 
 After a successful indexing run, `~/.minisearch/current.pb` points to the most
-recent index. That is why running `minisearch` without arguments reopens the
-last indexed root. MiniSearch also updates `~/.minisearch/indexes.pb`, a recent
-index catalog used by the GUI to switch between previously built indexes
-without rebuilding them.
+recent index. Running `minisearch` without arguments opens the shell and loads
+that current index when it exists. MiniSearch also updates
+`~/.minisearch/indexes.pb`, a recent index catalog used by the GUI and shell to
+show previously built indexes by path. If older index files already exist under
+`~/.minisearch/indexes/`, MiniSearch lazily backfills missing catalog entries
+when the recent-index list is loaded.
 
 When refreshing an existing index, unchanged text files reuse their stored
 postings. New or modified text files are parsed again, while removed files are

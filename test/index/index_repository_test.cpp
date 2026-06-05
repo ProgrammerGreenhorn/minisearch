@@ -11,6 +11,8 @@
 #include "index.pb.h"
 #include "minisearch/index/IndexRepository.hpp"
 #include "minisearch/index/IndexSchema.hpp"
+#include "minisearch/index/IndexStorage.hpp"
+#include "minisearch/index/InvertedIndex.hpp"
 
 namespace {
 
@@ -18,6 +20,8 @@ namespace proto = minisearch::index::proto;
 
 using minisearch::index::IndexRepository;
 using minisearch::index::IndexSchema;
+using minisearch::index::IndexStorage;
+using minisearch::index::InvertedIndex;
 
 class ScopedTempDir {
  public:
@@ -195,6 +199,25 @@ TEST(IndexRepositoryTest, LoadRecentIndexesFallsBackToCurrentPointer) {
   ASSERT_EQ(recent_indexes.size(), 1U);
   EXPECT_EQ(recent_indexes[0].rootPath, "legacy-root");
   EXPECT_EQ(recent_indexes[0].indexFile, std::filesystem::path("legacy.pb"));
+}
+
+TEST(IndexRepositoryTest, LoadRecentIndexesBackfillsExistingIndexFiles) {
+  ScopedTempDir temp_dir("minisearch_index_repository_catalog_backfill");
+  ScopedHome scoped_home(temp_dir.path());
+  const auto legacy_root = temp_dir.path() / "legacy-project";
+  const auto legacy_index_file = IndexRepository::indexesRoot() / "legacy.pb";
+
+  InvertedIndex search_index;
+  IndexStorage index_storage;
+  index_storage.save(legacy_index_file, search_index, legacy_root);
+
+  const std::vector<IndexRepository::ManagedIndex> recent_indexes =
+      IndexRepository::loadRecentIndexes();
+
+  ASSERT_EQ(recent_indexes.size(), 1U);
+  EXPECT_EQ(recent_indexes[0].rootPath, legacy_root.string());
+  EXPECT_EQ(recent_indexes[0].indexFile, legacy_index_file);
+  EXPECT_TRUE(std::filesystem::exists(IndexRepository::indexCatalogFile()));
 }
 
 TEST(IndexRepositoryTest, LoadRecentIndexesThrowsForFutureCatalogVersion) {

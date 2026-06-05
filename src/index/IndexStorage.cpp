@@ -56,6 +56,23 @@ auto migrateIndexToCurrentVersion(proto::Index &proto_index,
   }
 }
 
+auto loadProtoIndex(const std::filesystem::path &index_file) -> proto::Index {
+  std::ifstream input_stream(index_file, std::ios::binary);
+  if (!input_stream) {
+    throw std::runtime_error("failed to open index file: " +
+                             index_file.string());
+  }
+
+  proto::Index proto_index;
+  if (!proto_index.ParseFromIstream(&input_stream)) {
+    throw std::runtime_error("failed to parse index file: " +
+                             index_file.string());
+  }
+
+  migrateIndexToCurrentVersion(proto_index, index_file);
+  return proto_index;
+}
+
 }  // namespace
 
 auto IndexStorage::save(const std::filesystem::path &index_file,
@@ -115,19 +132,7 @@ auto IndexStorage::save(const std::filesystem::path &index_file,
 
 auto IndexStorage::load(const std::filesystem::path &index_file) const
     -> InvertedIndex {
-  std::ifstream input_stream(index_file, std::ios::binary);
-  if (!input_stream) {
-    throw std::runtime_error("failed to open index file: " +
-                             index_file.string());
-  }
-
-  proto::Index proto_index;
-  if (!proto_index.ParseFromIstream(&input_stream)) {
-    throw std::runtime_error("failed to parse index file: " +
-                             index_file.string());
-  }
-
-  migrateIndexToCurrentVersion(proto_index, index_file);
+  const proto::Index proto_index = loadProtoIndex(index_file);
 
   std::vector<FileRecord> file_records;
   file_records.reserve(static_cast<std::size_t>(proto_index.records_size()));
@@ -167,6 +172,15 @@ auto IndexStorage::load(const std::filesystem::path &index_file) const
   InvertedIndex loaded_index;
   loaded_index.replace(std::move(file_records), std::move(line_postings));
   return loaded_index;
+}
+
+auto IndexStorage::loadMetadata(const std::filesystem::path &index_file) const
+    -> Metadata {
+  const proto::Index proto_index = loadProtoIndex(index_file);
+
+  Metadata metadata;
+  metadata.rootPath = proto_index.root_path();
+  return metadata;
 }
 
 }  // namespace minisearch::index

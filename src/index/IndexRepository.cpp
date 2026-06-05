@@ -10,11 +10,13 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "index.pb.h"
 #include "minisearch/index/IndexCatalogStorage.hpp"
 #include "minisearch/index/IndexSchema.hpp"
+#include "minisearch/index/IndexStorage.hpp"
 #include "minisearch/util/Hash.hpp"
 #include "minisearch/util/Logger.hpp"
 
@@ -80,6 +82,73 @@ auto catalogFileExists() -> bool {
   return catalog_exists;
 }
 
+auto appendBackfilledIndexes(
+    std::vector<IndexRepository::ManagedIndex>& managed_indexes) -> bool {
+  std::error_code directory_error;
+  const bool indexes_directory_exists =
+      std::filesystem::exists(IndexRepository::indexesRoot(), directory_error);
+  if (directory_error || !indexes_directory_exists) {
+    return false;
+  }
+
+  std::unordered_set<std::string> known_roots;
+  std::unordered_set<std::string> known_index_files;
+  for (const auto& managed_index : managed_indexes) {
+    known_roots.insert(managed_index.rootPath);
+    known_index_files.insert(managed_index.indexFile.string());
+  }
+
+  bool changed = false;
+  IndexStorage index_storage;
+  std::filesystem::directory_iterator directory_iterator(
+      IndexRepository::indexesRoot(), directory_error);
+  if (directory_error) {
+    return false;
+  }
+
+  for (const auto& directory_entry : directory_iterator) {
+    std::error_code entry_error;
+    if (!directory_entry.is_regular_file(entry_error) || entry_error) {
+      continue;
+    }
+
+    const std::filesystem::path index_file = directory_entry.path();
+    if (index_file.extension() != IndexFileExtension) {
+      continue;
+    }
+
+    const std::string index_file_key = index_file.string();
+    if (known_index_files.find(index_file_key) != known_index_files.end()) {
+      continue;
+    }
+
+    try {
+      const IndexStorage::Metadata metadata =
+          index_storage.loadMetadata(index_file);
+      if (metadata.rootPath.empty() ||
+          known_roots.find(metadata.rootPath) != known_roots.end()) {
+        continue;
+      }
+
+      managed_indexes.push_back({metadata.rootPath, index_file, 0});
+      known_roots.insert(metadata.rootPath);
+      known_index_files.insert(index_file_key);
+      changed = true;
+    } catch (const std::exception& exception) {
+      MINISEARCH_LOG_WARNING(
+          "skipping unreadable index catalog backfill file: " +
+          index_file.string() + ": " + exception.what());
+    }
+  }
+
+  if (managed_indexes.size() > MaxRecentIndexes) {
+    managed_indexes.resize(MaxRecentIndexes);
+  }
+  return changed;
+}
+
+// saves the given index as the current index and adds it to the recent indexes
+// catalog, removing any existing entries with the same root path or index file
 auto saveManagedIndex(const std::string& root_path,
                       const std::filesystem::path& index_file) -> void {
   IndexCatalogStorage index_catalog_storage;
@@ -199,7 +268,7 @@ auto IndexRepository::saveCurrentIndex(const std::string& root_path,
 auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
   std::ifstream input_stream(currentPointerFile(), std::ios::binary);
   if (!input_stream) {
-    throw std::runtime_error("no current index; run minisearch <path> first");
+    throw std::runtime_error("no current index; use index <path> in the shell");
   }
 
   proto::CurrentIndex proto_current_index;
@@ -223,17 +292,24 @@ auto IndexRepository::loadCurrentIndex() -> CurrentIndex {
 }
 
 auto IndexRepository::loadRecentIndexes() -> std::vector<ManagedIndex> {
+  IndexCatalogStorage index_catalog_storage;
+  std::vector<ManagedIndex> managed_indexes;
   if (catalogFileExists()) {
-    IndexCatalogStorage index_catalog_storage;
-    return index_catalog_storage.load(indexCatalogFile());
+    managed_indexes = index_catalog_storage.load(indexCatalogFile());
+  } else {
+    try {
+      const CurrentIndex current_index = loadCurrentIndex();
+      managed_indexes.push_back(
+          {current_index.rootPath, current_index.indexFile, 0});
+    } catch (const std::exception&) {
+    }
   }
 
-  try {
-    const CurrentIndex current_index = loadCurrentIndex();
-    return {{current_index.rootPath, current_index.indexFile, 0}};
-  } catch (const std::exception&) {
-    return {};
+  if (appendBackfilledIndexes(managed_indexes)) {
+    index_catalog_storage.save(indexCatalogFile(), managed_indexes);
   }
+
+  return managed_indexes;
 }
 
 }  // namespace minisearch::index

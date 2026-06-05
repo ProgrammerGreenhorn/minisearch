@@ -89,10 +89,16 @@ Usage:
   minisearch <path> [--output <file>] [--threads <n>]
   minisearch help
 
+Inside the shell:
+  index <path>   Build or refresh an index
+  recent         Show recently indexed roots
+  find <query>   Search file names and paths
+  grep <query>   Search indexed text content
+
 Examples:
-  minisearch .
-  minisearch ./src
   minisearch
+  (minisearch) index ./src
+  (minisearch) recent
 )";
 }
 

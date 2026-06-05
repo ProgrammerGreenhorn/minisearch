@@ -306,20 +306,20 @@ MainFrame::MainFrame()
   root_sizer->Add(recent_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
   auto* search_sizer = new wxBoxSizer(wxHORIZONTAL);
+  queryCtrl_ =
+      new wxTextCtrl(main_panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
+                     wxDefaultSize, wxTE_PROCESS_ENTER);
+  queryCtrl_->SetMinSize(wxSize(320, -1));
+  styleTextControl(queryCtrl_);
+  search_sizer->Add(queryCtrl_, 1, wxRIGHT, 8);
+
   searchModeChoice_ = new wxChoice(main_panel, wxID_ANY);
   searchModeChoice_->SetMinSize(wxSize(150, -1));
   styleChoice(searchModeChoice_);
   searchModeChoice_->Append("File names");
-  searchModeChoice_->Append("Text content");
+  searchModeChoice_->Append("Grep text");
   searchModeChoice_->SetSelection(0);
   search_sizer->Add(searchModeChoice_, 0, wxRIGHT, 8);
-
-  queryCtrl_ =
-      new wxTextCtrl(main_panel, wxID_ANY, wxEmptyString, wxDefaultPosition,
-                     wxDefaultSize, wxTE_PROCESS_ENTER);
-  queryCtrl_->SetMinSize(wxSize(260, -1));
-  styleTextControl(queryCtrl_);
-  search_sizer->Add(queryCtrl_, 1, wxRIGHT, 8);
 
   searchButton_ = new wxButton(main_panel, wxID_ANY, "Search");
   searchButton_->SetMinSize(wxSize(90, -1));

@@ -1,11 +1,15 @@
 #include "minisearch/shell/InteractiveShell.hpp"
 
 #include <cctype>
+#include <exception>
 #include <iostream>
 #include <sstream>
+#include <thread>
 #include <utility>
 #include <vector>
 
+#include "minisearch/index/IndexBuilder.hpp"
+#include "minisearch/index/IndexRepository.hpp"
 #include "minisearch/search/SearchEngine.hpp"
 
 namespace minisearch::shell {
@@ -26,6 +30,12 @@ auto trim(std::string input_text) -> std::string {
   }
 
   return std::string(first_non_space, last_non_space);
+}
+
+auto defaultThreadCount() -> std::size_t {
+  const unsigned int hardware_thread_count =
+      std::thread::hardware_concurrency();
+  return hardware_thread_count == 0 ? 2 : hardware_thread_count;
 }
 
 auto splitCommand(const std::string& input_line)
@@ -61,15 +71,21 @@ auto printGrepMatches(
 
 }  // namespace
 
+InteractiveShell::InteractiveShell() = default;
+
 InteractiveShell::InteractiveShell(index::InvertedIndex search_index,
                                    std::string root_path,
                                    std::filesystem::path index_file)
     : index_(std::move(search_index)),
       rootPath_(std::move(root_path)),
-      indexFile_(std::move(index_file)) {}
+      indexFile_(std::move(index_file)),
+      hasIndex_(true) {}
 
 auto InteractiveShell::run() -> int {
   std::cout << "MiniSearch interactive shell. Type \"help\" for commands.\n";
+  if (!hasIndex_) {
+    std::cout << "No index loaded. Use \"index <path>\" to build one.\n";
+  }
 
   std::string input_line;
   while (true) {
@@ -103,28 +119,48 @@ auto InteractiveShell::execute(const std::string& input_line) -> bool {
     return true;
   }
 
+  if (command_name == "index" || command_name == "parse") {
+    indexPath(command_argument);
+    return true;
+  }
+
+  if (command_name == "recent") {
+    printRecent();
+    return true;
+  }
+
   if (command_name == "stats") {
-    printStats();
+    if (requireIndex(command_name)) {
+      printStats();
+    }
     return true;
   }
 
   if (command_name == "path") {
-    printPath();
+    if (requireIndex(command_name)) {
+      printPath();
+    }
     return true;
   }
 
   if (command_name == "show") {
-    printShow();
+    if (requireIndex(command_name)) {
+      printShow();
+    }
     return true;
   }
 
   if (command_name == "find") {
-    printFind(command_argument);
+    if (requireIndex(command_name)) {
+      printFind(command_argument);
+    }
     return true;
   }
 
   if (command_name == "grep") {
-    printGrep(command_argument);
+    if (requireIndex(command_name)) {
+      printGrep(command_argument);
+    }
     return true;
   }
 
@@ -134,6 +170,9 @@ auto InteractiveShell::execute(const std::string& input_line) -> bool {
 
 auto InteractiveShell::printHelp() const -> void {
   std::cout << R"(Commands:
+  index <path>   Build or refresh an index for a file or directory
+  parse <path>   Alias for index <path>
+  recent         Show recently indexed roots
   find <query>   Search indexed file names and paths
   grep <query>   Search indexed text content
   show           Show all indexed files
@@ -142,6 +181,64 @@ auto InteractiveShell::printHelp() const -> void {
   help           Show this help
   quit           Exit the shell
 )";
+}
+
+auto InteractiveShell::requireIndex(const std::string& command_name) const
+    -> bool {
+  if (hasIndex_) {
+    return true;
+  }
+
+  std::cout << command_name
+            << " requires a loaded index; use index <path> first.\n";
+  return false;
+}
+
+auto InteractiveShell::indexPath(const std::string& path_text) -> void {
+  if (path_text.empty()) {
+    std::cout << "usage: index <path>\n";
+    return;
+  }
+
+  try {
+    const std::filesystem::path target_path(path_text);
+    const std::filesystem::path index_file =
+        index::IndexRepository::indexFileForPath(target_path);
+    index::IndexBuilder index_builder;
+    index::IndexBuilder::Result build_result =
+        index_builder.build({target_path, index_file, defaultThreadCount()});
+
+    index_ = std::move(build_result.index);
+    rootPath_ = std::move(build_result.rootPath);
+    indexFile_ = std::move(build_result.indexFile);
+    hasIndex_ = true;
+
+    std::cout << "indexed: " << rootPath_ << '\n'
+              << "reused text files: " << build_result.reusedTextFiles << '\n'
+              << "parsed text files: " << build_result.parsedTextFiles << '\n';
+    printStats();
+  } catch (const std::exception& exception) {
+    std::cout << "index failed: " << exception.what() << '\n';
+  }
+}
+
+auto InteractiveShell::printRecent() const -> void {
+  try {
+    const std::vector<index::IndexRepository::ManagedIndex> recent_indexes =
+        index::IndexRepository::loadRecentIndexes();
+    if (recent_indexes.empty()) {
+      std::cout << "no recent indexes\n";
+      return;
+    }
+
+    for (std::size_t recent_index = 0; recent_index < recent_indexes.size();
+         ++recent_index) {
+      std::cout << recent_index + 1 << ". "
+                << recent_indexes[recent_index].rootPath << '\n';
+    }
+  } catch (const std::exception& exception) {
+    std::cout << "failed to load recent indexes: " << exception.what() << '\n';
+  }
 }
 
 auto InteractiveShell::printStats() const -> void {

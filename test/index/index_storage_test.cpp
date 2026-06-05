@@ -146,6 +146,21 @@ TEST(IndexStorageTest, SaveWritesCurrentSchemaVersion) {
   EXPECT_EQ(proto_index.root_path(), temp_dir.path().string());
 }
 
+TEST(IndexStorageTest, LoadMetadataReadsRootPath) {
+  ScopedTempDir temp_dir("minisearch_index_storage_metadata");
+  InvertedIndex search_index;
+  AddRecord(search_index, "metadata.txt", {ParsedTerm{"alpha", 1}});
+
+  const auto index_file = temp_dir.path() / "index.pb";
+  IndexStorage index_storage;
+  index_storage.save(index_file, search_index, temp_dir.path());
+
+  const IndexStorage::Metadata metadata =
+      index_storage.loadMetadata(index_file);
+
+  EXPECT_EQ(metadata.rootPath, temp_dir.path().string());
+}
+
 TEST(IndexStorageTest, LoadMigratesVersionOneIndex) {
   ScopedTempDir temp_dir("minisearch_index_storage_v1");
   const auto index_file = temp_dir.path() / "legacy.pb";
