@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "minisearch/config/AppConfig.hpp"
 #include "minisearch/index/IndexRepository.hpp"
 #include "minisearch/index/InvertedIndex.hpp"
 
@@ -29,7 +30,7 @@ class MainFrame : public wxFrame {
   /**
    * @brief Create the MiniSearch main window.
    */
-  MainFrame();
+  explicit MainFrame(config::AppConfig app_config);
 
  private:
   struct ResultEntry {
@@ -179,6 +180,7 @@ class MainFrame : public wxFrame {
   std::string rootPath_;
   std::filesystem::path indexFile_;
   bool hasIndex_ = false;
+  config::AppConfig appConfig_;
   std::vector<ResultEntry> resultEntries_;
   std::vector<index::IndexRepository::ManagedIndex> recentIndexes_;
 };

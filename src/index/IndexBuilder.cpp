@@ -107,7 +107,7 @@ auto parseChangedTextFiles(
 
 auto IndexBuilder::build(const Options& build_options) const -> Result {
   MINISEARCH_LOG_INFO("scanning files...");
-  FileScanner file_scanner;
+  FileScanner file_scanner(build_options.scannerOptions);
   std::vector<FileRecord> scanned_records =
       file_scanner.scan(build_options.targetPath);
   // Sort records by path to ensure deterministic document IDs across runs

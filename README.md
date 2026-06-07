@@ -27,8 +27,10 @@ sudo apt install -y protobuf-compiler libprotobuf-dev libwxgtk3.2-dev
 The GUI is enabled by default. Configure with
 `-DMINISEARCH_BUILD_GUI=OFF` if only the CLI target is needed.
 
-Tests are enabled by default and use GoogleTest through CMake
-`FetchContent`, so the first test-enabled configure may need network access.
+MiniSearch uses `toml++` for `config.toml` parsing. CMake first tries
+`find_package(tomlplusplus)` and falls back to `FetchContent` when it is not
+installed, so the first configure may need network access. Tests are enabled by
+default and use GoogleTest through `FetchContent` too.
 
 ## Build
 
@@ -197,6 +199,33 @@ Inspect a specific index file or directory:
 python3 scripts/visualize_index_pb.py ~/.minisearch/indexes/<hash>.pb -o /tmp/index.html
 ```
 
+## Configuration
+
+MiniSearch reads optional runtime defaults from `~/.minisearch/config.toml`.
+Missing config files are ignored and built-in defaults are used.
+
+Example:
+
+```toml
+[index]
+threads = 4
+max_text_file_bytes = 1048576
+excluded_names = [".git", "build", "node_modules"]
+
+[search]
+default_mode = "file_names" # file_names or grep
+
+[startup]
+open_current_index = true
+
+[logging]
+file = "/tmp/minisearch.log"
+```
+
+Command-line options still take precedence over config values. For example,
+`minisearch ./src --threads 8` overrides `[index].threads` for that run.
+`MINISEARCH_LOG_FILE` also takes precedence over `[logging].file`.
+
 ## Logging
 
 MiniSearch queues log messages in memory and writes them from a background
@@ -253,5 +282,5 @@ Main modules:
 
 - Ranking and fuzzy matching.
 - File-type and path filters.
-- Config file support.
+- GUI settings for editing runtime defaults.
 - Additional schema migrations as new persistent fields are added.

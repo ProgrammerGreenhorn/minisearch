@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <string>
 
+#include "minisearch/config/AppConfig.hpp"
+
 namespace minisearch::cli {
 
 enum class Command { OpenCurrent, Help, Index, Unknown };
@@ -25,6 +27,13 @@ struct CommandOptions {
 class CommandParser {
  public:
   /**
+   * @brief Create a parser with runtime default options.
+   *
+   * @param app_config Runtime defaults used when options are omitted.
+   */
+  explicit CommandParser(config::AppConfig app_config = config::AppConfig{});
+
+  /**
    * @brief Parse command-line arguments into command options.
    *
    * @param argument_count Number of command-line arguments.
@@ -40,6 +49,9 @@ class CommandParser {
    * @return Usage text shown for help and invalid commands.
    */
   static auto helpText() -> std::string;
+
+ private:
+  config::AppConfig appConfig_;
 };
 
 }  // namespace minisearch::cli

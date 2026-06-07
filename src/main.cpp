@@ -1,12 +1,15 @@
 #include <exception>
 
 #include "minisearch/app/Application.hpp"
+#include "minisearch/config/AppConfig.hpp"
 #include "minisearch/util/Logger.hpp"
 
 auto main(int argument_count, char** argument_values) -> int {
   try {
-    minisearch::util::Logger::instance().configureFromEnvironment();
-    const minisearch::app::Application application;
+    const minisearch::config::AppConfig app_config =
+        minisearch::config::loadAppConfig();
+    minisearch::config::configureLogger(app_config);
+    const minisearch::app::Application application(app_config);
     return application.run(argument_count, argument_values);
   } catch (const std::exception& exception) {
     MINISEARCH_LOG_ERROR(exception.what());

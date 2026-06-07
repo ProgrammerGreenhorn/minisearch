@@ -9,14 +9,25 @@ project(MiniSearch VERSION 0.1.0 LANGUAGES CXX)
 option(MINISEARCH_BUILD_TESTS "Build MiniSearch tests" ON)
 option(MINISEARCH_BUILD_GUI "Build the wxWidgets GUI" ON)
 
+include(FetchContent)
+
 find_package(Protobuf REQUIRED)
+find_package(tomlplusplus QUIET)
+
+if(NOT tomlplusplus_FOUND)
+    FetchContent_Declare(
+        tomlplusplus
+        GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+        GIT_TAG v3.4.0
+    )
+    FetchContent_MakeAvailable(tomlplusplus)
+endif()
 
 if(MINISEARCH_BUILD_GUI)
     find_package(wxWidgets REQUIRED COMPONENTS core base)
 endif()
 
 if(MINISEARCH_BUILD_TESTS)
-    include(FetchContent)
     FetchContent_Declare(
         googletest
         URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
@@ -49,6 +60,7 @@ add_library(minisearch_lib
     ${INDEX_PROTO_HDR}
     src/app/Application.cpp
     src/cli/CommandParser.cpp
+    src/config/AppConfig.cpp
     src/index/FileScanner.cpp
     src/index/IndexBuilder.cpp
     src/index/IndexCatalogStorage.cpp
@@ -72,7 +84,10 @@ target_include_directories(minisearch_lib
     ${Protobuf_INCLUDE_DIRS}
 )
 target_compile_features(minisearch_lib PUBLIC cxx_std_17)
-target_link_libraries(minisearch_lib PRIVATE ${Protobuf_LIBRARIES})
+target_link_libraries(minisearch_lib
+    PRIVATE
+    ${Protobuf_LIBRARIES}
+    tomlplusplus::tomlplusplus)
 
 target_compile_options(minisearch_lib PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>

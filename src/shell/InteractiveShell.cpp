@@ -4,7 +4,6 @@
 #include <exception>
 #include <iostream>
 #include <sstream>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -30,12 +29,6 @@ auto trim(std::string input_text) -> std::string {
   }
 
   return std::string(first_non_space, last_non_space);
-}
-
-auto defaultThreadCount() -> std::size_t {
-  const unsigned int hardware_thread_count =
-      std::thread::hardware_concurrency();
-  return hardware_thread_count == 0 ? 2 : hardware_thread_count;
 }
 
 auto splitCommand(const std::string& input_line)
@@ -71,15 +64,18 @@ auto printGrepMatches(
 
 }  // namespace
 
-InteractiveShell::InteractiveShell() = default;
+InteractiveShell::InteractiveShell(config::AppConfig app_config)
+    : appConfig_(std::move(app_config)) {}
 
 InteractiveShell::InteractiveShell(index::InvertedIndex search_index,
                                    std::string root_path,
-                                   std::filesystem::path index_file)
+                                   std::filesystem::path index_file,
+                                   config::AppConfig app_config)
     : index_(std::move(search_index)),
       rootPath_(std::move(root_path)),
       indexFile_(std::move(index_file)),
-      hasIndex_(true) {}
+      hasIndex_(true),
+      appConfig_(std::move(app_config)) {}
 
 auto InteractiveShell::run() -> int {
   std::cout << "MiniSearch interactive shell. Type \"help\" for commands.\n";
@@ -206,7 +202,8 @@ auto InteractiveShell::indexPath(const std::string& path_text) -> void {
         index::IndexRepository::indexFileForPath(target_path);
     index::IndexBuilder index_builder;
     index::IndexBuilder::Result build_result =
-        index_builder.build({target_path, index_file, defaultThreadCount()});
+        index_builder.build({target_path, index_file, appConfig_.threads,
+                             appConfig_.scannerOptions});
 
     index_ = std::move(build_result.index);
     rootPath_ = std::move(build_result.rootPath);

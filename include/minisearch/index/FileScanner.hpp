@@ -17,10 +17,6 @@ namespace minisearch::index {
 class FileScanner {
  public:
   struct Options {
-    std::vector<std::string> textExtensions{
-        ".txt",  ".md",  ".markdown", ".cpp", ".cc",   ".cxx",
-        ".c",    ".hpp", ".hh",       ".hxx", ".h",    ".json",
-        ".yaml", ".yml", ".toml",     ".ini", ".cmake"};
     std::vector<std::string> excludedNames{".git",
                                            "build",
                                            "cmake-build-debug",
@@ -39,7 +35,7 @@ class FileScanner {
   /**
    * @brief Create a scanner with explicit scanning options.
    *
-   * @param scanner_options File extension, exclusion, and size-limit options.
+   * @param scanner_options Exclusion and size-limit options.
    */
   explicit FileScanner(Options scanner_options);
 
@@ -65,12 +61,10 @@ class FileScanner {
   /**
    * @brief Check whether a file should have text content indexed.
    *
-   * @param file_path File path used to inspect the extension.
    * @param file_size File size in bytes.
-   * @return True if the file is small enough and has an indexed extension.
+   * @return True if the file is small enough to parse as text.
    */
-  auto shouldIndexText(const std::filesystem::path& file_path,
-                       std::uintmax_t file_size) const -> bool;
+  auto shouldIndexText(std::uintmax_t file_size) const -> bool;
 
   /**
    * @brief Convert a filesystem clock timestamp to time_t.
@@ -79,14 +73,6 @@ class FileScanner {
    * @return Converted system time value.
    */
   static auto toTimeT(std::filesystem::file_time_type file_time) -> std::time_t;
-
-  /**
-   * @brief Convert text to lowercase.
-   *
-   * @param input_text Text to convert.
-   * @return Lowercase copy of the input text.
-   */
-  static auto lower(std::string input_text) -> std::string;
 
   Options options_;
 };

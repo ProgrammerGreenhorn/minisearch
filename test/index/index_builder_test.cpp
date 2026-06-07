@@ -77,17 +77,20 @@ TEST(IndexBuilderTest, BuildsSearchableIndexAndSavesCurrentPointer) {
   WriteFile(root_dir.path() / "image.bin", "binary");
 
   const auto index_file = home_dir.path() / "custom" / "index.pb";
+  IndexBuilder::Options build_options;
+  build_options.targetPath = root_dir.path();
+  build_options.indexFile = index_file;
+  build_options.threads = 1;
   IndexBuilder index_builder;
-  const auto build_result =
-      index_builder.build({root_dir.path(), index_file, 1});
+  const auto build_result = index_builder.build(build_options);
 
   EXPECT_EQ(build_result.rootPath,
             IndexRepository::canonicalKey(root_dir.path()));
   EXPECT_EQ(build_result.indexFile, index_file);
-  EXPECT_EQ(build_result.parsedTextFiles, 1U);
+  EXPECT_EQ(build_result.parsedTextFiles, 2U);
   EXPECT_EQ(build_result.reusedTextFiles, 0U);
   EXPECT_EQ(build_result.index.fileCount(), 2U);
-  EXPECT_EQ(build_result.index.indexedTextFileCount(), 1U);
+  EXPECT_EQ(build_result.index.indexedTextFileCount(), 2U);
   const auto term_matches =
       build_result.index.findByTerms({"alpha", "beta"}, 10);
   ASSERT_EQ(term_matches.size(), 1U);
@@ -106,8 +109,11 @@ TEST(IndexBuilderTest, ReusesUnchangedTextFilesFromPreviousIndex) {
   WriteFile(root_dir.path() / "doc.txt", "Alpha beta");
 
   const auto index_file = home_dir.path() / "index.pb";
+  IndexBuilder::Options build_options;
+  build_options.targetPath = root_dir.path();
+  build_options.indexFile = index_file;
+  build_options.threads = 1;
   IndexBuilder index_builder;
-  const IndexBuilder::Options build_options{root_dir.path(), index_file, 1};
 
   const auto first_build_result = index_builder.build(build_options);
   const auto second_build_result = index_builder.build(build_options);

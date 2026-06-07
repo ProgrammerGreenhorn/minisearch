@@ -10,7 +10,7 @@
   - Add search history, clear search, context menus, open containing folder, copy path, and stronger match highlighting.
 - [ ] Add indexing progress and cancellation.
   - Show scanned files, parsed files, reused files, elapsed time, and a cancel action during long indexing runs.
-- [ ] Add config file support.
+- [x] Add config file support.
   - Store defaults such as thread count, excluded paths, max text-file size, startup behavior, and logging options.
 
 ## P1 - Search And Index Management

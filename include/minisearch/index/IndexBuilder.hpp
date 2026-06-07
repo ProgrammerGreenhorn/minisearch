@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string>
 
+#include "minisearch/index/FileScanner.hpp"
 #include "minisearch/index/InvertedIndex.hpp"
 
 namespace minisearch::index {
@@ -20,6 +21,7 @@ class IndexBuilder {
     std::filesystem::path targetPath;
     std::filesystem::path indexFile;
     std::size_t threads = 0;
+    FileScanner::Options scannerOptions;
   };
 
   struct Result {

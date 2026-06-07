@@ -1,7 +1,7 @@
 #include "minisearch/cli/CommandParser.hpp"
 
 #include <stdexcept>
-#include <thread>
+#include <utility>
 
 #include "minisearch/index/IndexRepository.hpp"
 
@@ -9,19 +9,14 @@ namespace minisearch::cli {
 
 namespace {
 
-auto defaultThreadCount() -> std::size_t {
-  const unsigned int hardware_thread_count =
-      std::thread::hardware_concurrency();
-  return hardware_thread_count == 0 ? 2 : hardware_thread_count;
-}
-
 auto resolveDefaultIndexFile(const std::filesystem::path& target_path)
     -> std::filesystem::path {
   return index::IndexRepository::indexFileForPath(target_path);
 }
 
 auto parseIndexOptions(CommandOptions& command_options, int argument_count,
-                       char** argument_values, int option_start_index) -> void {
+                       char** argument_values, int option_start_index,
+                       std::size_t default_threads) -> void {
   for (int argument_index = option_start_index; argument_index < argument_count;
        ++argument_index) {
     const std::string option_text = argument_values[argument_index];
@@ -34,7 +29,7 @@ auto parseIndexOptions(CommandOptions& command_options, int argument_count,
       command_options.threads = static_cast<std::size_t>(
           std::stoul(argument_values[++argument_index]));
       if (command_options.threads == 0) {
-        command_options.threads = defaultThreadCount();
+        command_options.threads = default_threads;
       }
     } else {
       throw std::invalid_argument("unknown option: " + option_text);
@@ -51,10 +46,13 @@ auto resolveIndexFile(CommandOptions& command_options) -> void {
 
 }  // namespace
 
+CommandParser::CommandParser(config::AppConfig app_config)
+    : appConfig_(std::move(app_config)) {}
+
 auto CommandParser::parse(int argument_count,
                           char** argument_values) const -> CommandOptions {
   CommandOptions command_options;
-  command_options.threads = defaultThreadCount();
+  command_options.threads = appConfig_.threads;
 
   if (argument_count <= 1) {
     command_options.command = Command::OpenCurrent;
@@ -76,7 +74,8 @@ auto CommandParser::parse(int argument_count,
   command_options.command = Command::Index;
   command_options.targetPath = argument_values[1];
   command_options.targetPathExplicit = true;
-  parseIndexOptions(command_options, argument_count, argument_values, 2);
+  parseIndexOptions(command_options, argument_count, argument_values, 2,
+                    appConfig_.threads);
   resolveIndexFile(command_options);
   return command_options;
 }

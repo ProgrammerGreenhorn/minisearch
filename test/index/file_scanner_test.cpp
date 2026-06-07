@@ -82,8 +82,8 @@ TEST(FileScannerTest, ScansDirectoryAndSkipsExcludedNames) {
 
   ASSERT_EQ(file_records.size(), 2U);
   EXPECT_EQ(file_records[0].path.filename(), std::filesystem::path("data.bin"));
-  EXPECT_FALSE(file_records[0].textIndexed);
-  EXPECT_EQ(file_records[0].contentHash, 0U);
+  EXPECT_TRUE(file_records[0].textIndexed);
+  EXPECT_NE(file_records[0].contentHash, 0U);
   EXPECT_EQ(file_records[1].path.filename(), std::filesystem::path("main.cpp"));
   EXPECT_TRUE(file_records[1].textIndexed);
 }

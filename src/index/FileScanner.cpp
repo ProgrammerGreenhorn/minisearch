@@ -1,7 +1,6 @@
 #include "minisearch/index/FileScanner.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <stdexcept>
 #include <string>
@@ -40,7 +39,7 @@ auto FileScanner::scan(const std::filesystem::path& root_path) const
 
   if (fs::is_regular_file(normalized_root)) {
     const std::uintmax_t file_size = fs::file_size(normalized_root);
-    const bool text_indexed = shouldIndexText(normalized_root, file_size);
+    const bool text_indexed = shouldIndexText(file_size);
     file_records.emplace_back(
         normalized_root, file_size,
         toTimeT(fs::last_write_time(normalized_root)), text_indexed,
@@ -72,7 +71,7 @@ auto FileScanner::scan(const std::filesystem::path& root_path) const
       continue;
     }
 
-    const bool text_indexed = shouldIndexText(current_entry.path(), file_size);
+    const bool text_indexed = shouldIndexText(file_size);
     file_records.emplace_back(
         current_entry.path(), file_size,
         toTimeT(current_entry.last_write_time()), text_indexed,
@@ -89,16 +88,8 @@ auto FileScanner::shouldSkip(
                    entry_name) != options_.excludedNames.end();
 }
 
-auto FileScanner::shouldIndexText(const std::filesystem::path& file_path,
-                                  std::uintmax_t file_size) const -> bool {
-  if (file_size > options_.maxTextFileBytes) {
-    return false;
-  }
-
-  const std::string file_extension = lower(file_path.extension().string());
-  return std::find(options_.textExtensions.begin(),
-                   options_.textExtensions.end(),
-                   file_extension) != options_.textExtensions.end();
+auto FileScanner::shouldIndexText(std::uintmax_t file_size) const -> bool {
+  return file_size <= options_.maxTextFileBytes;
 }
 
 auto FileScanner::toTimeT(std::filesystem::file_time_type file_time)
@@ -109,14 +100,6 @@ auto FileScanner::toTimeT(std::filesystem::file_time_type file_time)
           file_time - std::filesystem::file_time_type::clock::now() +
           system_clock::now());
   return system_clock::to_time_t(system_time);
-}
-
-auto FileScanner::lower(std::string input_text) -> std::string {
-  std::transform(input_text.begin(), input_text.end(), input_text.begin(),
-                 [](unsigned char character) -> char {
-                   return static_cast<char>(std::tolower(character));
-                 });
-  return input_text;
 }
 
 }  // namespace minisearch::index

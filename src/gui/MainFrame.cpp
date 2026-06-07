@@ -21,7 +21,6 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <thread>
 #include <utility>
 
 #include "minisearch/index/IndexBuilder.hpp"
@@ -57,12 +56,6 @@ auto mutedTextColor() -> wxColour { return wxColour(71, 85, 105); }
 
 auto resultRowColor(long row_index) -> wxColour {
   return row_index % 2 == 0 ? wxColour(255, 255, 255) : wxColour(238, 246, 255);
-}
-
-auto defaultThreadCount() -> std::size_t {
-  const unsigned int hardware_thread_count =
-      std::thread::hardware_concurrency();
-  return hardware_thread_count == 0 ? 2 : hardware_thread_count;
 }
 
 auto trim(std::string input_text) -> std::string {
@@ -248,9 +241,10 @@ auto styleStatusBar(wxStatusBar* status_bar) -> void {
 
 }  // namespace
 
-MainFrame::MainFrame()
+MainFrame::MainFrame(config::AppConfig app_config)
     : wxFrame(nullptr, wxID_ANY, "MiniSearch", wxDefaultPosition,
-              wxSize(1280, 820)) {
+              wxSize(1280, 820)),
+      appConfig_(std::move(app_config)) {
   auto* main_panel = new wxPanel(this);
   SetMinSize(wxSize(MinimumWindowWidth, MinimumWindowHeight));
   SetBackgroundColour(pageBackgroundColor());
@@ -318,7 +312,8 @@ MainFrame::MainFrame()
   styleChoice(searchModeChoice_);
   searchModeChoice_->Append("File names");
   searchModeChoice_->Append("Grep text");
-  searchModeChoice_->SetSelection(0);
+  searchModeChoice_->SetSelection(
+      appConfig_.defaultSearchMode == config::SearchMode::GrepText ? 1 : 0);
   search_sizer->Add(searchModeChoice_, 0, wxRIGHT, 8);
 
   searchButton_ = new wxButton(main_panel, wxID_ANY, "Search");
@@ -456,7 +451,8 @@ auto MainFrame::indexPath() -> void {
         index::IndexRepository::indexFileForPath(target_path);
     index::IndexBuilder index_builder;
     index::IndexBuilder::Result build_result =
-        index_builder.build({target_path, index_file, defaultThreadCount()});
+        index_builder.build({target_path, index_file, appConfig_.threads,
+                             appConfig_.scannerOptions});
 
     index_ = std::move(build_result.index);
     rootPath_ = std::move(build_result.rootPath);

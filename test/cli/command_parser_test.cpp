@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "minisearch/cli/CommandParser.hpp"
+#include "minisearch/config/AppConfig.hpp"
 
 namespace {
 
@@ -68,6 +69,23 @@ TEST(CommandParserTest, ParsesShortOutputOption) {
   EXPECT_EQ(command_options.command, Command::Index);
   EXPECT_EQ(command_options.indexFile, std::filesystem::path("index.pb"));
   EXPECT_TRUE(command_options.indexFileExplicit);
+}
+
+TEST(CommandParserTest, UsesConfiguredDefaultThreads) {
+  minisearch::config::AppConfig app_config;
+  app_config.threads = 7;
+
+  std::vector<std::string> argument_storage{"minisearch", "."};
+  std::vector<char*> argument_values;
+  for (auto& argument_text : argument_storage) {
+    argument_values.push_back(argument_text.data());
+  }
+
+  CommandParser command_parser(app_config);
+  const CommandOptions command_options = command_parser.parse(
+      static_cast<int>(argument_values.size()), argument_values.data());
+
+  EXPECT_EQ(command_options.threads, 7U);
 }
 
 TEST(CommandParserTest, ThrowsForUnknownIndexOption) {

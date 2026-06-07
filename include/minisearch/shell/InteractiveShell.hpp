@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 
+#include "minisearch/config/AppConfig.hpp"
 #include "minisearch/index/InvertedIndex.hpp"
 
 namespace minisearch::shell {
@@ -18,7 +19,7 @@ class InteractiveShell {
   /**
    * @brief Create a shell with no loaded index.
    */
-  InteractiveShell();
+  explicit InteractiveShell(config::AppConfig app_config = config::AppConfig{});
 
   /**
    * @brief Create a shell for an already loaded index.
@@ -28,7 +29,8 @@ class InteractiveShell {
    * @param index_file Protobuf index file loaded for this shell.
    */
   InteractiveShell(index::InvertedIndex search_index, std::string root_path,
-                   std::filesystem::path index_file);
+                   std::filesystem::path index_file,
+                   config::AppConfig app_config = config::AppConfig{});
 
   /**
    * @brief Run the interactive shell loop.
@@ -104,6 +106,7 @@ class InteractiveShell {
   std::string rootPath_;
   std::filesystem::path indexFile_;
   bool hasIndex_ = false;
+  config::AppConfig appConfig_;
 };
 
 }  // namespace minisearch::shell

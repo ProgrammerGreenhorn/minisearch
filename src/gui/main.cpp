@@ -2,6 +2,7 @@
 
 #include <exception>
 
+#include "minisearch/config/AppConfig.hpp"
 #include "minisearch/gui/MainFrame.hpp"
 #include "minisearch/util/Logger.hpp"
 
@@ -11,8 +12,10 @@ class MiniSearchGuiApp : public wxApp {
  public:
   auto OnInit() -> bool override {
     try {
-      minisearch::util::Logger::instance().configureFromEnvironment();
-      auto* main_frame = new minisearch::gui::MainFrame();
+      const minisearch::config::AppConfig app_config =
+          minisearch::config::loadAppConfig();
+      minisearch::config::configureLogger(app_config);
+      auto* main_frame = new minisearch::gui::MainFrame(app_config);
       main_frame->Show(true);
       return true;
     } catch (const std::exception& exception) {
