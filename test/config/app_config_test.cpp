@@ -51,7 +51,7 @@ TEST(AppConfigTest, MissingConfigUsesDefaults) {
   EXPECT_EQ(app_config.defaultSearchMode, SearchMode::FileNames);
   EXPECT_TRUE(app_config.openCurrentIndexOnStartup);
   EXPECT_TRUE(app_config.logFile.empty());
-  EXPECT_FALSE(app_config.scannerOptions.excludedNames.empty());
+  EXPECT_TRUE(app_config.scannerOptions.excludedNames.empty());
 }
 
 TEST(AppConfigTest, LoadsTomlConfigValues) {
@@ -61,6 +61,8 @@ TEST(AppConfigTest, LoadsTomlConfigValues) {
 [index]
 threads = 4
 max_text_file_bytes = 4096
+text_probe_bytes = 256
+binary_control_ratio = 0.10
 excluded_names = [".git", "out"]
 
 [search]
@@ -78,6 +80,8 @@ file = "/tmp/minisearch-test.log"
 
   EXPECT_EQ(app_config.threads, 4U);
   EXPECT_EQ(app_config.scannerOptions.maxTextFileBytes, 4096U);
+  EXPECT_EQ(app_config.scannerOptions.textProbeBytes, 256U);
+  EXPECT_DOUBLE_EQ(app_config.scannerOptions.binaryControlRatio, 0.10);
   EXPECT_EQ(app_config.scannerOptions.excludedNames,
             (std::vector<std::string>{".git", "out"}));
   EXPECT_EQ(app_config.defaultSearchMode, SearchMode::GrepText);

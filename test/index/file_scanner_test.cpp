@@ -6,6 +6,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -45,6 +46,15 @@ auto WriteFile(const std::filesystem::path& file_path,
   output_stream << contents;
 }
 
+auto WriteBinaryFile(const std::filesystem::path& file_path,
+                     std::string_view contents) -> void {
+  std::filesystem::create_directories(file_path.parent_path());
+  std::ofstream output_stream(file_path, std::ios::binary);
+  ASSERT_TRUE(output_stream);
+  output_stream.write(contents.data(),
+                      static_cast<std::streamsize>(contents.size()));
+}
+
 auto SortByPath(std::vector<FileRecord> file_records)
     -> std::vector<FileRecord> {
   std::sort(file_records.begin(), file_records.end(),
@@ -71,21 +81,38 @@ TEST(FileScannerTest, ScansRegularTextFile) {
   EXPECT_NE(file_records[0].contentHash, 0U);
 }
 
-TEST(FileScannerTest, ScansDirectoryAndSkipsExcludedNames) {
+TEST(FileScannerTest, ScansDirectoryWithoutDefaultExcludedNames) {
   ScopedTempDir temp_dir("minisearch_file_scanner_dir");
   WriteFile(temp_dir.path() / "src" / "main.cpp", "int main() {}\n");
   WriteFile(temp_dir.path() / "data.bin", "binary");
-  WriteFile(temp_dir.path() / "build" / "generated.cpp", "skip me");
+  WriteFile(temp_dir.path() / "build" / "generated.cpp", "include me");
 
   FileScanner file_scanner;
   const auto file_records = SortByPath(file_scanner.scan(temp_dir.path()));
 
-  ASSERT_EQ(file_records.size(), 2U);
-  EXPECT_EQ(file_records[0].path.filename(), std::filesystem::path("data.bin"));
+  ASSERT_EQ(file_records.size(), 3U);
+  EXPECT_EQ(file_records[0].path.filename(),
+            std::filesystem::path("generated.cpp"));
   EXPECT_TRUE(file_records[0].textIndexed);
-  EXPECT_NE(file_records[0].contentHash, 0U);
-  EXPECT_EQ(file_records[1].path.filename(), std::filesystem::path("main.cpp"));
+  EXPECT_EQ(file_records[1].path.filename(), std::filesystem::path("data.bin"));
   EXPECT_TRUE(file_records[1].textIndexed);
+  EXPECT_NE(file_records[1].contentHash, 0U);
+  EXPECT_EQ(file_records[2].path.filename(), std::filesystem::path("main.cpp"));
+  EXPECT_TRUE(file_records[2].textIndexed);
+}
+
+TEST(FileScannerTest, HonorsConfiguredExcludedNames) {
+  ScopedTempDir temp_dir("minisearch_file_scanner_excluded");
+  WriteFile(temp_dir.path() / "src" / "main.cpp", "int main() {}\n");
+  WriteFile(temp_dir.path() / "build" / "generated.cpp", "skip me");
+
+  FileScanner::Options scanner_options;
+  scanner_options.excludedNames = {"build"};
+  FileScanner file_scanner(scanner_options);
+  const auto file_records = SortByPath(file_scanner.scan(temp_dir.path()));
+
+  ASSERT_EQ(file_records.size(), 1U);
+  EXPECT_EQ(file_records[0].path.filename(), std::filesystem::path("main.cpp"));
 }
 
 TEST(FileScannerTest, HonorsMaxTextFileBytes) {
@@ -99,6 +126,22 @@ TEST(FileScannerTest, HonorsMaxTextFileBytes) {
   const auto file_records = file_scanner.scan(target_file);
 
   ASSERT_EQ(file_records.size(), 1U);
+  EXPECT_FALSE(file_records[0].textIndexed);
+  EXPECT_EQ(file_records[0].contentHash, 0U);
+}
+
+TEST(FileScannerTest, KeepsBinaryFilesButDoesNotIndexText) {
+  ScopedTempDir temp_dir("minisearch_file_scanner_binary");
+  const auto target_file = temp_dir.path() / "image.bin";
+  const std::string binary_contents{"abc\0def", 7};
+  WriteBinaryFile(target_file, binary_contents);
+
+  FileScanner file_scanner;
+  const auto file_records = file_scanner.scan(target_file);
+
+  ASSERT_EQ(file_records.size(), 1U);
+  EXPECT_EQ(file_records[0].path,
+            std::filesystem::absolute(target_file).lexically_normal());
   EXPECT_FALSE(file_records[0].textIndexed);
   EXPECT_EQ(file_records[0].contentHash, 0U);
 }

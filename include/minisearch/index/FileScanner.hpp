@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -17,14 +18,10 @@ namespace minisearch::index {
 class FileScanner {
  public:
   struct Options {
-    std::vector<std::string> excludedNames{".git",
-                                           "build",
-                                           "cmake-build-debug",
-                                           "cmake-build-release",
-                                           "node_modules",
-                                           ".idea",
-                                           ".vscode"};
+    std::vector<std::string> excludedNames;
     std::uintmax_t maxTextFileBytes = 1024 * 1024;
+    std::size_t textProbeBytes = 8192;
+    double binaryControlRatio = 0.05;
   };
 
   /**
@@ -35,7 +32,7 @@ class FileScanner {
   /**
    * @brief Create a scanner with explicit scanning options.
    *
-   * @param scanner_options Exclusion and size-limit options.
+   * @param scanner_options Exclusion, size-limit, and text-detection options.
    */
   explicit FileScanner(Options scanner_options);
 
@@ -61,10 +58,12 @@ class FileScanner {
   /**
    * @brief Check whether a file should have text content indexed.
    *
+   * @param file_path File path whose contents should be probed.
    * @param file_size File size in bytes.
-   * @return True if the file is small enough to parse as text.
+   * @return True if the file is small enough and appears to be text.
    */
-  auto shouldIndexText(std::uintmax_t file_size) const -> bool;
+  auto shouldIndexText(const std::filesystem::path& file_path,
+                       std::uintmax_t file_size) const -> bool;
 
   /**
    * @brief Convert a filesystem clock timestamp to time_t.

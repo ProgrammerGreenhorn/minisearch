@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -16,6 +17,30 @@ namespace {
 auto normalizePath(const std::filesystem::path& source_path)
     -> std::filesystem::path {
   return std::filesystem::absolute(source_path).lexically_normal();
+}
+
+auto isAllowedTextControl(unsigned char character) -> bool {
+  return character == '\n' || character == '\r' || character == '\t' ||
+         character == '\f';
+}
+
+auto isSuspiciousControl(unsigned char character) -> bool {
+  if (character == '\0') {
+    return true;
+  }
+
+  return (character < 0x20 && !isAllowedTextControl(character)) ||
+         character == 0x7F;
+}
+
+auto controlRatioThreshold(double configured_threshold) -> double {
+  if (configured_threshold < 0.0) {
+    return 0.0;
+  }
+  if (configured_threshold > 1.0) {
+    return 1.0;
+  }
+  return configured_threshold;
 }
 
 }  // namespace
@@ -39,7 +64,7 @@ auto FileScanner::scan(const std::filesystem::path& root_path) const
 
   if (fs::is_regular_file(normalized_root)) {
     const std::uintmax_t file_size = fs::file_size(normalized_root);
-    const bool text_indexed = shouldIndexText(file_size);
+    const bool text_indexed = shouldIndexText(normalized_root, file_size);
     file_records.emplace_back(
         normalized_root, file_size,
         toTimeT(fs::last_write_time(normalized_root)), text_indexed,
@@ -71,7 +96,7 @@ auto FileScanner::scan(const std::filesystem::path& root_path) const
       continue;
     }
 
-    const bool text_indexed = shouldIndexText(file_size);
+    const bool text_indexed = shouldIndexText(current_entry.path(), file_size);
     file_records.emplace_back(
         current_entry.path(), file_size,
         toTimeT(current_entry.last_write_time()), text_indexed,
@@ -88,8 +113,49 @@ auto FileScanner::shouldSkip(
                    entry_name) != options_.excludedNames.end();
 }
 
-auto FileScanner::shouldIndexText(std::uintmax_t file_size) const -> bool {
-  return file_size <= options_.maxTextFileBytes;
+auto FileScanner::shouldIndexText(const std::filesystem::path& file_path,
+                                  std::uintmax_t file_size) const -> bool {
+  if (file_size > options_.maxTextFileBytes) {
+    return false;
+  }
+
+  if (file_size == 0 || options_.textProbeBytes == 0) {
+    return true;
+  }
+
+  std::ifstream input_stream(file_path, std::ios::binary);
+  if (!input_stream) {
+    return false;
+  }
+
+  const std::size_t bytes_to_probe = static_cast<std::size_t>(std::min(
+      file_size, static_cast<std::uintmax_t>(options_.textProbeBytes)));
+  std::string probe_buffer(bytes_to_probe, '\0');
+  input_stream.read(probe_buffer.data(),
+                    static_cast<std::streamsize>(probe_buffer.size()));
+  const std::size_t bytes_read =
+      static_cast<std::size_t>(input_stream.gcount());
+  if (bytes_read == 0) {
+    return true;
+  }
+
+  std::size_t suspicious_control_count = 0;
+  for (std::size_t byte_index = 0; byte_index < bytes_read; ++byte_index) {
+    const unsigned char character =
+        static_cast<unsigned char>(probe_buffer[byte_index]);
+    if (character == '\0') {
+      return false;
+    }
+    if (isSuspiciousControl(character)) {
+      ++suspicious_control_count;
+    }
+  }
+
+  const double suspicious_control_ratio =
+      static_cast<double>(suspicious_control_count) /
+      static_cast<double>(bytes_read);
+  return suspicious_control_ratio <=
+         controlRatioThreshold(options_.binaryControlRatio);
 }
 
 auto FileScanner::toTimeT(std::filesystem::file_time_type file_time)

@@ -68,6 +68,17 @@ auto applyIndexConfig(AppConfig& app_config,
     app_config.scannerOptions.maxTextFileBytes = *max_text_file_bytes;
   }
 
+  if (const auto text_probe_bytes =
+          config_table["text_probe_bytes"].value<std::uint64_t>()) {
+    app_config.scannerOptions.textProbeBytes =
+        static_cast<std::size_t>(*text_probe_bytes);
+  }
+
+  if (const auto binary_control_ratio =
+          config_table["binary_control_ratio"].value<double>()) {
+    app_config.scannerOptions.binaryControlRatio = *binary_control_ratio;
+  }
+
   app_config.scannerOptions.excludedNames = stringArrayOr(
       config_table, "excluded_names", app_config.scannerOptions.excludedNames);
 }
