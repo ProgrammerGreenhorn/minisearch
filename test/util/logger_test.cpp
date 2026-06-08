@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -35,33 +34,6 @@ class ScopedTempDir {
 
  private:
   std::filesystem::path path_;
-};
-
-class ScopedEnvironmentVariable {
- public:
-  ScopedEnvironmentVariable(const std::string& name, const std::string& value)
-      : name_(name) {
-    const char* previous_value = std::getenv(name_.c_str());
-    if (previous_value != nullptr) {
-      old_value_ = previous_value;
-      had_old_value_ = true;
-    }
-
-    setenv(name_.c_str(), value.c_str(), 1);
-  }
-
-  ~ScopedEnvironmentVariable() {
-    if (had_old_value_) {
-      setenv(name_.c_str(), old_value_.c_str(), 1);
-    } else {
-      unsetenv(name_.c_str());
-    }
-  }
-
- private:
-  std::string name_;
-  std::string old_value_;
-  bool had_old_value_ = false;
 };
 
 auto CountOccurrences(const std::string& text,
@@ -110,25 +82,6 @@ TEST(LoggerTest, WritesPlainTextLogFile) {
   EXPECT_NE(log_content.find("[WARN ] logger warning output test"),
             std::string::npos);
   EXPECT_EQ(log_content.find("\033"), std::string::npos);
-}
-
-TEST(LoggerTest, ConfigureFromEnvironmentEnablesFileOutput) {
-  ScopedTempDir temp_dir("minisearch_logger_env");
-  const auto log_file = temp_dir.path() / "minisearch.log";
-  ScopedEnvironmentVariable scoped_log_file("MINISEARCH_LOG_FILE",
-                                            log_file.string());
-
-  Logger::instance().clearLogFile();
-  Logger::instance().configureFromEnvironment();
-  testing::internal::CaptureStderr();
-  Logger::instance().error("logger env output test");
-  Logger::instance().flush();
-  (void)testing::internal::GetCapturedStderr();
-
-  const std::string log_content = ReadFile(log_file);
-  Logger::instance().clearLogFile();
-  EXPECT_NE(log_content.find("[ERROR] logger env output test"),
-            std::string::npos);
 }
 
 TEST(LoggerTest, FlushWaitsForQueuedMessages) {

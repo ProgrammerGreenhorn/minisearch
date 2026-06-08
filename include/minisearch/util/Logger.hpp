@@ -48,11 +48,6 @@ class Logger {
   auto operator=(Logger&&) -> Logger& = delete;
 
   /**
-   * @brief Configure file output from MINISEARCH_LOG_FILE.
-   */
-  auto configureFromEnvironment() -> void;
-
-  /**
    * @brief Enable log-file output.
    *
    * @param log_file File path to append log messages to.

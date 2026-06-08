@@ -35,6 +35,25 @@ struct AppConfig {
 auto configFilePath() -> std::filesystem::path;
 
 /**
+ * @brief Create the default TOML config file when it is missing.
+ *
+ * Existing config files are left untouched.
+ *
+ * @return True when a new config file was created.
+ */
+auto ensureDefaultConfigFile() -> bool;
+
+/**
+ * @brief Create a default TOML config file at an explicit path when missing.
+ *
+ * Existing config files are left untouched.
+ *
+ * @param config_file TOML config file to create when absent.
+ * @return True when a new config file was created.
+ */
+auto ensureDefaultConfigFile(const std::filesystem::path& config_file) -> bool;
+
+/**
  * @brief Load the default MiniSearch TOML config.
  *
  * Missing config files are treated as default configuration.

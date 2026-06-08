@@ -6,6 +6,12 @@
 
 auto main(int argument_count, char** argument_values) -> int {
   try {
+    try {
+      (void)minisearch::config::ensureDefaultConfigFile();
+    } catch (const std::exception& exception) {
+      MINISEARCH_LOG_WARNING(exception.what());
+    }
+
     const minisearch::config::AppConfig app_config =
         minisearch::config::loadAppConfig();
     minisearch::config::configureLogger(app_config);

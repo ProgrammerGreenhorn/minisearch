@@ -1,7 +1,6 @@
 #include "minisearch/util/Logger.hpp"
 
 #include <chrono>
-#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -15,8 +14,6 @@
 namespace minisearch::util {
 
 namespace {
-
-constexpr std::string_view LogFileEnvironmentVariable = "MINISEARCH_LOG_FILE";
 
 auto label(LogLevel log_level) -> const char* {
   switch (log_level) {
@@ -107,16 +104,6 @@ Logger::~Logger() {
 
   std::lock_guard<std::mutex> output_lock(outputMutex_);
   fileStream_.reset();
-}
-
-auto Logger::configureFromEnvironment() -> void {
-  const char* log_file_value = std::getenv(LogFileEnvironmentVariable.data());
-  if (log_file_value == nullptr || std::string_view(log_file_value).empty()) {
-    clearLogFile();
-    return;
-  }
-
-  setLogFile(log_file_value);
 }
 
 auto Logger::setLogFile(const std::filesystem::path& log_file) -> void {

@@ -12,6 +12,12 @@ class MiniSearchGuiApp : public wxApp {
  public:
   auto OnInit() -> bool override {
     try {
+      try {
+        (void)minisearch::config::ensureDefaultConfigFile();
+      } catch (const std::exception& exception) {
+        MINISEARCH_LOG_WARNING(exception.what());
+      }
+
       const minisearch::config::AppConfig app_config =
           minisearch::config::loadAppConfig();
       minisearch::config::configureLogger(app_config);

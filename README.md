@@ -1,4 +1,4 @@
-#MiniSearch
+# MiniSearch
 
 MiniSearch is a C++17 local file indexing and search tool. It builds a
 Protobuf-backed inverted index for files on disk, then exposes that index
@@ -170,26 +170,23 @@ left out of the rebuilt index.
 
 Persisted index data carries an explicit schema version. MiniSearch currently
 writes index schema version `2` and can load index versions `1` through `2`.
-Version `2` adds `root_path` metadata;
-version `1` indexes are migrated in memory when loaded
-        .
+Version `2` adds `root_path` metadata; version `1` indexes are migrated in
+memory when loaded.
 
-    The `current.pb` pointer has its own schema
-        version.MiniSearch currently writes and supports current -
-    index pointer version `1`
-            .Unsupported future versions and missing version fields are rejected
-                with explicit errors instead of being parsed as current data.
+The `current.pb` pointer has its own schema version. MiniSearch currently writes
+and supports current-index pointer version `1`. Unsupported future versions and
+missing version fields are rejected with explicit errors instead of being parsed
+as current data.
 
-        ##Index Visualization
+## Index Visualization
 
-            Visualize stored Protobuf index files as a local HTML report :
+Visualize stored Protobuf index files as a local HTML report:
 
-```bash python3 scripts /
-        visualize_index_pb.py
+```bash
+python3 scripts/visualize_index_pb.py
 ```
 
-        By default,
-    the script reads `~ /.minisearch / indexes/*.pb`, decodes data with
+By default, the script reads `~/.minisearch/indexes/*.pb`, decodes data with
 `proto/index.proto`, and writes:
 
 ```text
@@ -205,15 +202,16 @@ python3 scripts/visualize_index_pb.py ~/.minisearch/indexes/<hash>.pb -o /tmp/in
 ## Configuration
 
 MiniSearch reads optional runtime defaults from `~/.minisearch/config.toml`.
-Missing config files are ignored and built-in defaults are used. By default,
-MiniSearch does not exclude common directories for you; add `excluded_names` when
-you want to skip paths such as build outputs or dependency directories.
+On startup, MiniSearch creates this file with example defaults when it is
+missing. Existing config files are never overwritten. By default, MiniSearch does
+not exclude common directories for you; add `excluded_names` when you want to
+skip paths such as build outputs or dependency directories.
 
 Example:
 
 ```toml
 [index]
-threads = 4
+threads = 0 # auto
 max_text_file_bytes = 1048576
 text_probe_bytes = 8192
 binary_control_ratio = 0.05
@@ -236,19 +234,18 @@ Command-line options still take precedence over config values. For example,
 ## Logging
 
 MiniSearch queues log messages in memory and writes them from a background
-worker thread in batches. It logs to the console by default. Set
-`MINISEARCH_LOG_FILE` to append the same log events to a plain-text file
-without terminal color escape codes:
+worker thread in batches. It logs to the console by default. Use
+`[logging].file` in `~/.minisearch/config.toml` for persistent file logging, or
+set `MINISEARCH_LOG_FILE` for a one-run override. File logs omit terminal color
+escape codes:
 
 ```bash
 MINISEARCH_LOG_FILE=/tmp/minisearch.log ./build/debug/minisearch ./src
 MINISEARCH_LOG_FILE=/tmp/minisearch-gui.log ./build/debug/minisearch-gui
 ```
 
-The logger is process-wide and can also be configured in code through
-`minisearch::util::Logger::instance().setLogFile(...)`. Call
-`minisearch::util::Logger::instance().flush()` when tests or tools need to wait
-for queued log messages to reach disk.
+The logger is process-wide. Call `minisearch::util::Logger::instance().flush()`
+when tests or tools need to wait for queued log messages to reach disk.
 
 ## Tests
 

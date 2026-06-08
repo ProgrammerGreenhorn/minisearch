@@ -1,7 +1,13 @@
 #include "minisearch/config/AppConfig.hpp"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -20,6 +26,56 @@ namespace {
 constexpr std::string_view ConfigDirectoryName = ".minisearch";
 constexpr std::string_view ConfigFileName = "config.toml";
 constexpr std::string_view LogFileEnvironmentVariable = "MINISEARCH_LOG_FILE";
+constexpr std::string_view DefaultConfigToml =
+    R"toml(# MiniSearch runtime configuration.
+# This file is created once. MiniSearch will not overwrite user edits.
+
+[index]
+threads = 0
+max_text_file_bytes = 1048576
+text_probe_bytes = 8192
+binary_control_ratio = 0.05
+excluded_names = []
+
+[search]
+default_mode = "file_names"
+
+[startup]
+open_current_index = true
+
+[logging]
+# file = "/tmp/minisearch.log"
+)toml";
+
+auto fileErrorMessage(std::string_view action,
+                      const std::filesystem::path& file_path,
+                      int error_number) -> std::string {
+  return std::string(action) + " " + file_path.string() + ": " +
+         std::strerror(error_number);
+}
+
+auto writeAll(int file_descriptor, std::string_view contents) -> void {
+  const char* next_byte = contents.data();
+  std::size_t remaining_bytes = contents.size();
+
+  while (remaining_bytes > 0) {
+    const ssize_t written_bytes =
+        ::write(file_descriptor, next_byte, remaining_bytes);
+    if (written_bytes == -1) {
+      if (errno == EINTR) {
+        continue;
+      }
+      throw std::runtime_error("failed to write default config file: " +
+                               std::string(std::strerror(errno)));
+    }
+    if (written_bytes == 0) {
+      throw std::runtime_error("failed to write default config file");
+    }
+
+    next_byte += written_bytes;
+    remaining_bytes -= static_cast<std::size_t>(written_bytes);
+  }
+}
 
 auto stringArrayOr(const toml::table& config_table, std::string_view key,
                    const std::vector<std::string>& fallback)
@@ -142,6 +198,53 @@ auto configFilePath() -> std::filesystem::path {
          ConfigFileName;
 }
 
+auto ensureDefaultConfigFile() -> bool {
+  return ensureDefaultConfigFile(configFilePath());
+}
+
+auto ensureDefaultConfigFile(const std::filesystem::path& config_file) -> bool {
+  const std::filesystem::path config_directory = config_file.parent_path();
+  if (!config_directory.empty()) {
+    std::error_code create_error;
+    std::filesystem::create_directories(config_directory, create_error);
+    if (create_error) {
+      throw std::runtime_error("failed to create config directory " +
+                               config_directory.string() + ": " +
+                               create_error.message());
+    }
+  }
+
+  const std::string config_file_text = config_file.string();
+  int config_file_descriptor =
+      ::open(config_file_text.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+  if (config_file_descriptor == -1) {
+    const int error_number = errno;
+    if (error_number == EEXIST) {
+      return false;
+    }
+    throw std::runtime_error(fileErrorMessage(
+        "failed to create default config file", config_file, error_number));
+  }
+
+  try {
+    writeAll(config_file_descriptor, DefaultConfigToml);
+    if (::close(config_file_descriptor) == -1) {
+      const int error_number = errno;
+      config_file_descriptor = -1;
+      throw std::runtime_error(fileErrorMessage(
+          "failed to close default config file", config_file, error_number));
+    }
+    return true;
+  } catch (...) {
+    if (config_file_descriptor != -1) {
+      (void)::close(config_file_descriptor);
+    }
+    std::error_code remove_error;
+    std::filesystem::remove(config_file, remove_error);
+    throw;
+  }
+}
+
 auto loadAppConfig() -> AppConfig {
   return loadAppConfigFromFile(configFilePath());
 }
@@ -173,23 +276,23 @@ auto loadAppConfigFromFile(const std::filesystem::path& config_file)
 }
 
 auto configureLogger(const AppConfig& app_config) -> void {
+  const char* log_file_value = std::getenv(LogFileEnvironmentVariable.data());
+  if (log_file_value != nullptr) {
+    if (std::string_view(log_file_value).empty()) {
+      util::Logger::instance().clearLogFile();
+      return;
+    }
+
+    util::Logger::instance().setLogFile(log_file_value);
+    return;
+  }
+
   if (app_config.logFile.empty()) {
     util::Logger::instance().clearLogFile();
-  } else {
-    util::Logger::instance().setLogFile(app_config.logFile);
-  }
-
-  const char* log_file_value = std::getenv(LogFileEnvironmentVariable.data());
-  if (log_file_value == nullptr) {
     return;
   }
 
-  if (std::string_view(log_file_value).empty()) {
-    util::Logger::instance().clearLogFile();
-    return;
-  }
-
-  util::Logger::instance().setLogFile(log_file_value);
+  util::Logger::instance().setLogFile(app_config.logFile);
 }
 
 }  // namespace minisearch::config
